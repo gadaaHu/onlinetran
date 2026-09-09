@@ -1,0 +1,29 @@
+name: frontend
+description: LMS Online Training Platform - Flutter Frontend
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.4.0
+  flutter_secure_storage: ^9.0.0
+  flutter_riverpod: ^2.5.1
+  google_fonts: ^6.2.1
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+  universal_html: ^2.3.0
+  file_picker: ^11.0.3
+  url_launcher: ^6.3.2
+  js: ^0.6.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
