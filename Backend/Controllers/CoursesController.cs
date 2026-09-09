@@ -74,6 +74,7 @@ public class CoursesController : ControllerBase
             .Include(c => c.Instructor)
             .Include(c => c.Lessons.OrderBy(l => l.Order))
             .Include(c => c.Quizzes)
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (course == null) return NotFound();
@@ -150,19 +151,37 @@ public class CoursesController : ControllerBase
     public async Task<IActionResult> MyEnrollments()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        
+        // PERFORMANCE FIX: Batch-load all quiz results instead of per-enrollment query
         var enrollments = await _context.CourseEnrollments
             .Include(e => e.Course)
             .Where(e => e.UserId == userId)
-            .Select(e => new EnrollmentDto(
-                e.Id, 
-                e.CourseId, 
-                e.Course.Title, 
-                e.ProgressPercentage, 
-                e.EnrolledAt,
-                _context.QuizResults.Any(r => r.StudentId == userId && r.Quiz.CourseId == e.CourseId && r.Score >= r.Quiz.PassingScore)
-            ))
+            .AsNoTracking()
             .ToListAsync();
-        return Ok(enrollments);
+
+        // Fetch all quiz results for this user in one query
+        var quizResults = await _context.QuizResults
+            .Include(r => r.Quiz)
+            .Where(r => r.StudentId == userId)
+            .AsNoTracking()
+            .ToListAsync();
+
+        // Build a lookup: CourseId -> HasPassed
+        var coursePassedLookup = quizResults
+            .Where(r => r.Score >= r.Quiz.PassingScore)
+            .GroupBy(r => r.Quiz.CourseId)
+            .ToDictionary(g => g.Key, g => true);
+
+        var result = enrollments.Select(e => new EnrollmentDto(
+            e.Id,
+            e.CourseId,
+            e.Course.Title,
+            e.ProgressPercentage,
+            e.EnrolledAt,
+            coursePassedLookup.ContainsKey(e.CourseId)
+        )).ToList();
+
+        return Ok(result);
     }
 
     [HttpPost("{id}/lessons")]
@@ -257,14 +276,7 @@ public class CoursesController : ControllerBase
             contentType = "application/octet-stream";
         }
 
-        var memory = new MemoryStream();
-        using (var stream = new FileStream(filePath, FileMode.Open))
-        {
-            await stream.CopyToAsync(memory);
-        }
-        memory.Position = 0;
-
-        // original filename might have the guid, we can just return it
-        return File(memory, contentType, lesson.ResourceFilePath);
+        // PERFORMANCE FIX: Stream file directly instead of loading into memory
+        return PhysicalFile(filePath, contentType, Path.GetFileName(lesson.ResourceFilePath), enableRangeProcessing: true);
     }
 }
