@@ -53,11 +53,13 @@ class _ExamScreenState extends ConsumerState<ExamScreen> {
   Future<void> _initProctoring() async {
     final modelsLoaded = await _proctoringPlatform.initFaceDetector();
     if (!modelsLoaded) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _proctoringMessage = "Failed to load AI models";
         _proctoringColor = Colors.red;
         _cameraError = true;
       });
+      }
       return;
     }
 
@@ -237,7 +239,7 @@ class _ExamScreenState extends ConsumerState<ExamScreen> {
               hasProfilePic
                   ? 'Please look at the camera to verify your identity before starting the exam. The exam requires continuous webcam monitoring.'
                   : 'You do not have a baseline profile picture. Please look at the camera and take a clear photo of your face to serve as your baseline for future exams.',
-              style: TextStyle(fontSize: 14, color: colorScheme.onSurface.withOpacity(0.7)),
+              style: TextStyle(fontSize: 14, color: colorScheme.onSurface.withValues(alpha: 0.7)),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -394,7 +396,7 @@ class _ExamScreenState extends ConsumerState<ExamScreen> {
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -422,7 +424,7 @@ class _ExamScreenState extends ConsumerState<ExamScreen> {
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                                   decoration: BoxDecoration(
-                                    color: _proctoringColor.withOpacity(0.1),
+                                    color: _proctoringColor.withValues(alpha: 0.1),
                                     borderRadius: const BorderRadius.vertical(bottom: Radius.circular(10)),
                                   ),
                                   child: Row(
@@ -493,7 +495,7 @@ class _ExamScreenState extends ConsumerState<ExamScreen> {
             Text(
               'Passing Score: ${quiz.passingScore}%',
               style: TextStyle(
-                color: colorScheme.onSurface.withOpacity(0.6),
+                color: colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
             const SizedBox(height: 48),
@@ -581,8 +583,8 @@ class _QuestionCard extends StatelessWidget {
                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? colorScheme.primary.withOpacity(0.15)
-                          : colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                          ? colorScheme.primary.withValues(alpha: 0.15)
+                          : colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isSelected
@@ -599,7 +601,7 @@ class _QuestionCard extends StatelessWidget {
                               : Icons.radio_button_unchecked,
                           color: isSelected
                               ? colorScheme.primary
-                              : colorScheme.onSurface.withOpacity(0.5),
+                              : colorScheme.onSurface.withValues(alpha: 0.5),
                         ),
                         const SizedBox(width: 12),
                         Expanded(

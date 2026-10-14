@@ -88,12 +88,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                   Positioned(
                     top: -100 + (50 * math.sin(_bgCtrl.value * 2 * math.pi)),
                     right: -100 + (30 * math.cos(_bgCtrl.value * 2 * math.pi)),
-                    child: _BgOrb(color: AppColors.violet, size: 400),
+                    child: const _BgOrb(color: AppColors.violet, size: 400),
                   ),
                   Positioned(
                     bottom: -150 + (60 * math.cos(_bgCtrl.value * 2 * math.pi)),
                     left: -100 + (40 * math.sin(_bgCtrl.value * 2 * math.pi)),
-                    child: _BgOrb(color: AppColors.cyan, size: 350),
+                    child: const _BgOrb(color: AppColors.cyan, size: 350),
                   ),
                 ],
               );

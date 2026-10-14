@@ -22,13 +22,13 @@ timeout /t 2 /nobreak >nul
 
 :: Start backend
 echo [3/4] Starting Backend...
-start "EduVerse Backend" cmd /k "cd /d ""c:\Users\GIRMA\Desktop\online training\Backend"" && dotnet run"
+start "EduVerse Backend" cmd /k "cd /d "%~dp0Backend" && dotnet run"
 echo       Waiting 6s for backend to initialize...
 timeout /t 6 /nobreak >nul
 
 :: Serve pre-built web app with Python HTTP server
 echo [4/4] Starting Frontend (serving build\web on port 8081)...
-start "EduVerse Frontend" cmd /k "cd /d ""c:\Users\GIRMA\Desktop\online training\frontend\build\web"" && python -m http.server 8081"
+start "EduVerse Frontend" cmd /k "cd /d "%~dp0frontend\build\web" && python -m http.server 8081"
 
 :: Open browser automatically after 2 seconds
 timeout /t 2 /nobreak >nul

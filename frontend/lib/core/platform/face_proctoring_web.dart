@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:universal_html/html.dart' as html;
+import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 import 'dart:async';
 import '../face_api_interop.dart' as face_api;
@@ -44,7 +44,9 @@ class FaceProctoringWeb implements FaceProctoringPlatform {
 
     try {
       ui_web.platformViewRegistry.registerViewFactory(viewId, (int id) => _videoElement!);
-    } catch (_) {}
+    } catch (e) {
+      print("Error registering view factory: $e");
+    }
 
     try {
       if (html.window.navigator.mediaDevices == null) {

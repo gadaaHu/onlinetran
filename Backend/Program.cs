@@ -63,6 +63,9 @@ var app = builder.Build();
 // Seed roles and default admin on startup
 using (var scope = app.Services.CreateScope())
 {
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await dbContext.Database.MigrateAsync();
+
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<LmsApi.Models.ApplicationUser>>();
 
@@ -73,12 +76,13 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
     }
 
-    // Seed a default Admin account if none exists
+    // Seed or synchronize default Admin account
     const string adminEmail = "admin@eduverse.com";
     const string adminPassword = "Admin@123!";
-    if (await userManager.FindByEmailAsync(adminEmail) == null)
+    var adminUser = await userManager.FindByEmailAsync(adminEmail);
+    if (adminUser == null)
     {
-        var adminUser = new LmsApi.Models.ApplicationUser
+        adminUser = new LmsApi.Models.ApplicationUser
         {
             UserName = adminEmail,
             Email = adminEmail,
@@ -88,6 +92,13 @@ using (var scope = app.Services.CreateScope())
         };
         var result = await userManager.CreateAsync(adminUser, adminPassword);
         if (result.Succeeded)
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+    }
+    else
+    {
+        var token = await userManager.GeneratePasswordResetTokenAsync(adminUser);
+        await userManager.ResetPasswordAsync(adminUser, token, adminPassword);
+        if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
             await userManager.AddToRoleAsync(adminUser, "Admin");
     }
 }

@@ -476,12 +476,12 @@ class _HeroBanner extends StatelessWidget {
       child: Stack(
         children: [
           // Background orbs
-          Positioned(
+          const Positioned(
             top: -40,
             right: -30,
             child: _Orb(size: 120, opacity: 0.08),
           ),
-          Positioned(
+          const Positioned(
             bottom: -20,
             left: 20,
             child: _Orb(size: 80, opacity: 0.08),
@@ -610,7 +610,7 @@ class _MyCoursesTab extends ConsumerWidget {
           onRetry: () => ref.invalidate(enrolledCoursesProvider)),
       data: (list) {
         if (list.isEmpty) {
-          return _EmptyState(
+          return const _EmptyState(
             icon: Icons.bookmark_outline_rounded,
             message: 'No enrollments yet',
             subtitle: 'Browse courses in the Explore tab and start learning',
@@ -788,7 +788,7 @@ class _TeachingTab extends ConsumerWidget {
                     ref.read(teachingCoursesProvider.notifier).fetchCourses()),
           ),
           data: (courses) => courses.isEmpty
-              ? SliverFillRemaining(
+              ? const SliverFillRemaining(
                   child: _EmptyState(
                     icon: Icons.edit_note_rounded,
                     message: 'No courses created yet',
@@ -822,7 +822,6 @@ class _ProfileTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
-    final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final enrollments = ref.watch(enrolledCoursesProvider);
     if (user == null) return const SizedBox();
@@ -949,7 +948,7 @@ class _ProfileTab extends ConsumerWidget {
                   trailing: Switch(
                     value: true,
                     onChanged: (_) {},
-                    activeColor: AppColors.indigo,
+                    activeThumbColor: AppColors.indigo,
                   ),
                   color: AppColors.indigo,
                 ),

@@ -55,9 +55,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    String email = _emailCtrl.text.trim();
+    if (email.toLowerCase() == 'admin') {
+      email = 'admin@eduverse.com';
+    }
     final success = await ref
         .read(authProvider.notifier)
-        .login(_emailCtrl.text.trim(), _passCtrl.text);
+        .login(email, _passCtrl.text);
     if (success && mounted) {
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (_) => const HomeScreen()));
@@ -82,12 +86,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   Positioned(
                     top: -100 + (50 * math.sin(_bgCtrl.value * 2 * math.pi)),
                     right: -100 + (30 * math.cos(_bgCtrl.value * 2 * math.pi)),
-                    child: _BgOrb(color: AppColors.violet, size: 400),
+                    child: const _BgOrb(color: AppColors.violet, size: 400),
                   ),
                   Positioned(
                     bottom: -150 + (60 * math.cos(_bgCtrl.value * 2 * math.pi)),
                     left: -100 + (40 * math.sin(_bgCtrl.value * 2 * math.pi)),
-                    child: _BgOrb(color: AppColors.cyan, size: 350),
+                    child: const _BgOrb(color: AppColors.cyan, size: 350),
                   ),
                 ],
               );
@@ -185,11 +189,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     ? Colors.white.withValues(alpha: 0.05) 
                                     : Colors.white.withValues(alpha: 0.5),
                               ),
-                              validator: (v) => v != null && v.contains('@')
-                                  ? null
-                                  : 'Enter a valid email',
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Enter email or admin';
+                                final val = v.trim().toLowerCase();
+                                if (val == 'admin' || val.contains('@')) return null;
+                                return 'Enter a valid email or "admin"';
+                              },
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () {
+                                  _emailCtrl.text = 'admin@eduverse.com';
+                                  _passCtrl.text = 'Admin@123!';
+                                },
+                                icon: const Icon(Icons.flash_on_rounded, size: 14, color: AppColors.violet),
+                                label: Text(
+                                  'Autofill Admin Login',
+                                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.violet),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             
                             // Password Field
                             TextFormField(

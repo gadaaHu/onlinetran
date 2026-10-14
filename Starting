@@ -1,2 +1,11 @@
-  Backend (http://localhost:5083)
-  Frontend (http://localhost:8080)
+EduVerse Application Services:
+
+Backend API:
+  http://localhost:5083 (Swagger / OpenAPI & API endpoints)
+
+Frontend Options:
+  1. Development Mode (start_servers.bat):
+     http://localhost:50454 (flutter run with hot-reload)
+
+  2. Fast Static Server (restart.bat):
+     http://localhost:8081 (pre-built flutter web via python http.server)

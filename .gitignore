@@ -1,0 +1,46 @@
+# Visual Studio & VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# .NET Build Output
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+
+# Flutter / Dart
+**/frontend/.dart_tool/
+**/frontend/.flutter-plugins
+**/frontend/.flutter-plugins-dependencies
+**/frontend/.packages
+**/frontend/build/
+*.lock
+
+# Android Gradle
+**/.gradle/
+**/android-app/build/
+**/android-app/app/build/
+**/local.properties
+*.apk
+*.aab
+
+# iOS & Xcode
+**/DerivedData/
+**/.build/
+*.xcuserstate
+xcuserdata/
+
+# Microsoft Office temp files
+~$*
+
+# OS Files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+*.tmp
+*.log

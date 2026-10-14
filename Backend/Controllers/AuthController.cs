@@ -64,7 +64,14 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
-        var user = await _userManager.FindByEmailAsync(dto.Email);
+        var user = await _userManager.FindByEmailAsync(dto.Email)
+            ?? await _userManager.FindByNameAsync(dto.Email);
+
+        if (user == null && dto.Email.Equals("admin", StringComparison.OrdinalIgnoreCase))
+        {
+            user = await _userManager.FindByEmailAsync("admin@eduverse.com");
+        }
+
         if (user == null)
             return Unauthorized(new { Message = "Invalid email or password." });
 

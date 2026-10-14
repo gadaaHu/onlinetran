@@ -1,0 +1,271 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4A0000012C00000100000001 /* EduVerseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000022C00000100000001 /* EduVerseApp.swift */; };
+		4A0000032C00000100000001 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000042C00000100000001 /* Models.swift */; };
+		4A0000052C00000100000001 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000062C00000100000001 /* APIService.swift */; };
+		4A0000072C00000100000001 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000082C00000100000001 /* LoginView.swift */; };
+		4A0000092C00000100000001 /* CourseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A00000A2C00000100000001 /* CourseListView.swift */; };
+		4A00000B2C00000100000001 /* LiveClassroomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A00000C2C00000100000001 /* LiveClassroomView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		4A00000D2C00000100000001 /* EduVerse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EduVerse.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A0000022C00000100000001 /* EduVerseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EduVerseApp.swift; sourceTree = "<group>"; };
+		4A0000042C00000100000001 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		4A0000062C00000100000001 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+		4A0000082C00000100000001 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		4A00000A2C00000100000001 /* CourseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseListView.swift; sourceTree = "<group>"; };
+		4A00000C2C00000100000001 /* LiveClassroomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveClassroomView.swift; sourceTree = "<group>"; };
+		4A00000E2C00000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4A00000F2C00000100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4A0000102C00000100000001 = {
+			isa = PBXGroup;
+			children = (
+				4A0000112C00000100000001 /* EduVerse */,
+				4A0000122C00000100000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4A0000112C00000100000001 /* EduVerse */ = {
+			isa = PBXGroup;
+			children = (
+				4A0000132C00000100000001 /* App */,
+				4A0000142C00000100000001 /* Models */,
+				4A0000152C00000100000001 /* Services */,
+				4A0000162C00000100000001 /* Views */,
+				4A0000172C00000100000001 /* Resources */,
+			);
+			path = EduVerse;
+			sourceTree = "<group>";
+		};
+		4A0000132C00000100000001 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				4A0000022C00000100000001 /* EduVerseApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		4A0000142C00000100000001 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				4A0000042C00000100000001 /* Models.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		4A0000152C00000100000001 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				4A0000062C00000100000001 /* APIService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		4A0000162C00000100000001 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				4A0000082C00000100000001 /* LoginView.swift */,
+				4A00000A2C00000100000001 /* CourseListView.swift */,
+				4A00000C2C00000100000001 /* LiveClassroomView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		4A0000172C00000100000001 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				4A00000E2C00000100000001 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		4A0000122C00000100000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4A00000D2C00000100000001 /* EduVerse.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4A0000182C00000100000001 /* EduVerse */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A0000192C00000100000001 /* Build configuration list for PBXNativeTarget "EduVerse" */;
+			buildPhases = (
+				4A00001A2C00000100000001 /* Sources */,
+				4A00000F2C00000100000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EduVerse;
+			productName = EduVerse;
+			productReference = 4A00000D2C00000100000001 /* EduVerse.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4A00001B2C00000100000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					4A0000182C00000100000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 4A00001C2C00000100000001 /* Build configuration list for PBXProject "EduVerse" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4A0000102C00000100000001;
+			productRefGroup = 4A0000122C00000100000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4A0000182C00000100000001 /* EduVerse */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4A00001A2C00000100000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A0000012C00000100000001 /* EduVerseApp.swift in Sources */,
+				4A0000032C00000100000001 /* Models.swift in Sources */,
+				4A0000052C00000100000001 /* APIService.swift in Sources */,
+				4A0000072C00000100000001 /* LoginView.swift in Sources */,
+				4A0000092C00000100000001 /* CourseListView.swift in Sources */,
+				4A00000B2C00000100000001 /* LiveClassroomView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		4A00001D2C00000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		4A00001E2C00000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		4A00001F2C00000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = EduVerse/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.eduverse.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4A0000202C00000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = EduVerse/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.eduverse.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4A00001C2C00000100000001 /* Build configuration list for PBXProject "EduVerse" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A00001D2C00000100000001 /* Debug */,
+				4A00001E2C00000100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4A0000192C00000100000001 /* Build configuration list for PBXNativeTarget "EduVerse" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A00001F2C00000100000001 /* Debug */,
+				4A0000202C00000100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 4A00001B2C00000100000001 /* Project object */;
+}

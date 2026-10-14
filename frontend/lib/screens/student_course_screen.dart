@@ -149,7 +149,7 @@ class _StudentCourseScreenState extends ConsumerState<StudentCourseScreen> {
             )
           : null,
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: AppColors.indigo))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.indigo))
           : _error != null
               ? Center(child: Text(_error!, style: const TextStyle(color: AppColors.rose)))
               : CustomScrollView(

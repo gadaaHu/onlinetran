@@ -105,15 +105,15 @@ class AppTheme {
   static final lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    colorScheme: ColorScheme.light(
+    colorScheme: const ColorScheme.light(
       primary: AppColors.indigo,
       secondary: AppColors.violet,
       tertiary: AppColors.cyan,
       surface: AppColors.lightSurface,
-      onSurface: const Color(0xFF0F0F1A),
-      surfaceContainerHighest: const Color(0xFFF0EEFF),
+      onSurface: Color(0xFF0F0F1A),
+      surfaceContainerHighest: Color(0xFFF0EEFF),
       outline: AppColors.lightBorder,
-      outlineVariant: const Color(0xFFE0DEFF),
+      outlineVariant: Color(0xFFE0DEFF),
       error: AppColors.rose,
     ),
     scaffoldBackgroundColor: AppColors.lightBg,
@@ -196,7 +196,7 @@ class AppTheme {
   static final darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    colorScheme: ColorScheme.dark(
+    colorScheme: const ColorScheme.dark(
       primary: AppColors.indigo,
       secondary: AppColors.violet,
       tertiary: AppColors.cyan,
