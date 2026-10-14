@@ -84,5 +84,42 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(qr => qr.StudentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // ============ CRITICAL PERFORMANCE INDEXES ============
+        
+        // Index for quiz results lookups by student and course
+        builder.Entity<QuizResult>()
+            .HasIndex(r => new { r.StudentId, r.QuizId })
+            .HasDatabaseName("IX_QuizResults_StudentId_QuizId");
+
+        // Index for course enrollments by user
+        builder.Entity<CourseEnrollment>()
+            .HasIndex(e => e.UserId)
+            .HasDatabaseName("IX_CourseEnrollments_UserId");
+
+        // Index for course enrollments by course
+        builder.Entity<CourseEnrollment>()
+            .HasIndex(e => e.CourseId)
+            .HasDatabaseName("IX_CourseEnrollments_CourseId");
+
+        // Index for lessons by course and order
+        builder.Entity<Lesson>()
+            .HasIndex(l => new { l.CourseId, l.Order })
+            .HasDatabaseName("IX_Lessons_CourseId_Order");
+
+        // Index for questions by quiz
+        builder.Entity<Question>()
+            .HasIndex(q => q.QuizId)
+            .HasDatabaseName("IX_Questions_QuizId");
+
+        // Index for courses by instructor
+        builder.Entity<Course>()
+            .HasIndex(c => c.InstructorId)
+            .HasDatabaseName("IX_Courses_InstructorId");
+
+        // Index for quizzes by course
+        builder.Entity<Quiz>()
+            .HasIndex(q => q.CourseId)
+            .HasDatabaseName("IX_Quizzes_CourseId");
     }
 }
