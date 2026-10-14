@@ -1,5 +1,6 @@
 package com.example.eduverse.ui.auth
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,12 +11,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.eduverse.R
 import com.example.eduverse.data.EduVerseApi
 import kotlinx.coroutines.launch
 
@@ -53,16 +57,18 @@ fun RegisterScreen(
             // Icon
             Box(
                 modifier = Modifier
-                    .size(68.dp)
-                    .background(
-                        brush = Brush.linearGradient(
-                            listOf(Color(0xFF8B5CF6), Color(0xFF6366F1))
-                        ),
-                        shape = CircleShape
-                    ),
+                    .size(80.dp)
+                    .background(Color.White, shape = CircleShape)
+                    .padding(6.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = "📝", fontSize = 32.sp)
+                Image(
+                    painter = painterResource(id = R.drawable.app_logo),
+                    contentDescription = "EduVerse DW Logo",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

@@ -14,6 +14,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import com.example.eduverse.R
 import com.example.eduverse.data.EduVerseApi
 import kotlinx.coroutines.launch
 
@@ -43,18 +47,17 @@ fun LoginScreen(
             // EduVerse Logo Icon
             Box(
                 modifier = Modifier
-                    .size(76.dp)
-                    .background(
-                        brush = Brush.linearGradient(
-                            listOf(Color(0xFF8B5CF6), Color(0xFF6366F1))
-                        ),
-                        shape = CircleShape
-                    ),
+                    .size(92.dp)
+                    .background(Color.White, shape = CircleShape)
+                    .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "🎓",
-                    fontSize = 36.sp
+                Image(
+                    painter = painterResource(id = R.drawable.app_logo),
+                    contentDescription = "EduVerse DW Logo",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
                 )
             }
 
