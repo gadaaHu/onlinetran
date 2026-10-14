@@ -6,6 +6,7 @@ using LmsApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 namespace LmsApi.Controllers;
@@ -34,12 +35,17 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
+        var existing = await _userManager.FindByEmailAsync(dto.Email);
+        if (existing != null)
+            return BadRequest(new { Message = "An account with this email already exists." });
+
         var user = new ApplicationUser
         {
             UserName = dto.Email,
             Email = dto.Email,
             FirstName = dto.FirstName,
-            LastName = dto.LastName
+            LastName = dto.LastName,
+            EmailConfirmed = false // Requires authorizer confirmation
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -54,11 +60,13 @@ public class AuthController : ControllerBase
         {
             await _userManager.AddToRoleAsync(user, "Student");
         }
-        
-        var token = await GenerateJwtToken(user);
-        var roles = await _userManager.GetRolesAsync(user);
 
-        return Ok(new AuthResponseDto(token, user.Email!, $"{user.FirstName} {user.LastName}", roles, user.ProfilePictureUrl));
+        return Ok(new
+        {
+            Message = "Registration successful! Your student account is pending confirmation by the authorizer before you can log in.",
+            IsConfirmed = false,
+            Email = user.Email
+        });
     }
 
     [HttpPost("login")]
@@ -79,10 +87,90 @@ public class AuthController : ControllerBase
         if (!result.Succeeded)
             return Unauthorized(new { Message = "Invalid email or password." });
 
-        var token = await GenerateJwtToken(user);
         var roles = await _userManager.GetRolesAsync(user);
 
+        // Authorizer confirmation check: Students must be confirmed
+        if (!user.EmailConfirmed && !roles.Contains("Admin"))
+        {
+            return StatusCode(403, new
+            {
+                Message = "Your student account is pending confirmation by the authorizer. Please wait for an administrator to approve your account.",
+                IsConfirmed = false
+            });
+        }
+
+        var token = await GenerateJwtToken(user);
+
         return Ok(new AuthResponseDto(token, user.Email!, $"{user.FirstName} {user.LastName}", roles, user.ProfilePictureUrl));
+    }
+
+    [HttpGet("students")]
+    [Authorize(Roles = "Admin,Instructor")]
+    public async Task<IActionResult> GetStudents()
+    {
+        var users = await _userManager.Users
+            .OrderByDescending(u => u.CreatedAt)
+            .ToListAsync();
+
+        var list = new List<object>();
+        foreach (var u in users)
+        {
+            var userRoles = await _userManager.GetRolesAsync(u);
+            list.Add(new
+            {
+                Id = u.Id,
+                Email = u.Email,
+                FirstName = u.FirstName,
+                LastName = u.LastName,
+                FullName = $"{u.FirstName} {u.LastName}",
+                IsConfirmed = u.EmailConfirmed,
+                Roles = userRoles,
+                CreatedAt = u.CreatedAt
+            });
+        }
+        return Ok(list);
+    }
+
+    [HttpPost("confirm-student/{userId}")]
+    [Authorize(Roles = "Admin,Instructor")]
+    public async Task<IActionResult> ConfirmStudent(string userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound(new { Message = "Student not found." });
+
+        user.EmailConfirmed = true;
+        var res = await _userManager.UpdateAsync(user);
+        if (!res.Succeeded)
+            return BadRequest(new { Message = "Failed to confirm student." });
+
+        return Ok(new { Success = true, Message = $"Student {user.FirstName} {user.LastName} ({user.Email}) has been confirmed and authorized!" });
+    }
+
+    [HttpPost("reject-student/{userId}")]
+    [Authorize(Roles = "Admin,Instructor")]
+    public async Task<IActionResult> RejectStudent(string userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound(new { Message = "Student not found." });
+
+        user.EmailConfirmed = false;
+        await _userManager.UpdateAsync(user);
+
+        return Ok(new { Success = true, Message = $"Student {user.FirstName} {user.LastName} authorization status set to Pending/Rejected." });
+    }
+
+    [HttpPost("live-control")]
+    [Authorize(Roles = "Instructor,Admin")]
+    public IActionResult ControlLiveStudent([FromBody] LiveControlDto dto)
+    {
+        return Ok(new
+        {
+            Success = true,
+            Action = dto.Action,
+            StudentId = dto.StudentId,
+            RoomName = dto.RoomName,
+            Message = $"Instructor successfully applied action '{dto.Action}' to student {dto.StudentId}."
+        });
     }
 
     [HttpPost("profile-picture")]

@@ -8,6 +8,8 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.eduverse.data.EduVerseApi
 import com.example.eduverse.ui.auth.LoginScreen
+import com.example.eduverse.ui.auth.RegisterScreen
+import com.example.eduverse.ui.authorizer.AuthorizerScreen
 import com.example.eduverse.ui.classroom.AndroidLiveClassroomScreen
 import com.example.eduverse.ui.courses.CourseListScreen
 
@@ -30,6 +32,18 @@ fun MainNavigation() {
                         backStack.clear()
                         backStack.add(CoursesRoute)
                     },
+                    onNavigateToRegister = {
+                        backStack.add(RegisterRoute)
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            entry<RegisterRoute> {
+                RegisterScreen(
+                    onNavigateToLogin = {
+                        backStack.removeLastOrNull()
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -39,10 +53,22 @@ fun MainNavigation() {
                     onOpenClassroom = { roomName, lessonTitle ->
                         backStack.add(ClassroomRoute(roomName, lessonTitle))
                     },
+                    onOpenAuthorizer = {
+                        backStack.add(AuthorizerRoute)
+                    },
                     onLogout = {
                         EduVerseApi.currentSession = null
                         backStack.clear()
                         backStack.add(LoginRoute)
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            entry<AuthorizerRoute> {
+                AuthorizerScreen(
+                    onBack = {
+                        backStack.removeLastOrNull()
                     },
                     modifier = Modifier.fillMaxSize()
                 )

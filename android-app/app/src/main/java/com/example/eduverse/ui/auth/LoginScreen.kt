@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onNavigateToRegister: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var email by remember { mutableStateOf("admin@eduverse.com") }
@@ -174,18 +175,30 @@ fun LoginScreen(
             }
 
             if (errorMessage != null) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                val isPending = errorMessage?.contains("pending", ignoreCase = true) == true
                 Surface(
-                    color = Color(0xFFEF4444).copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp),
+                    color = if (isPending) Color(0xFFF59E0B).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isPending) Color(0xFFF59E0B).copy(alpha = 0.4f) else Color(0xFFEF4444).copy(alpha = 0.4f)
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = errorMessage ?: "",
-                        color = Color(0xFFF87171),
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(10.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (isPending) "⏳" else "⚠️", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = errorMessage ?: "",
+                            color = if (isPending) Color(0xFFFBBF24) else Color(0xFFF87171),
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp
+                        )
+                    }
                 }
             }
 
@@ -229,6 +242,29 @@ fun LoginScreen(
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Link to Register as Student
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "New student?",
+                    fontSize = 13.sp,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+                TextButton(onClick = onNavigateToRegister) {
+                    Text(
+                        text = "Register as Student",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFA78BFA)
                     )
                 }
             }

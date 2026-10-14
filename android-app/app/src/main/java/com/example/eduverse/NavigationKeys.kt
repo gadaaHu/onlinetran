@@ -7,7 +7,13 @@ import kotlinx.serialization.Serializable
 data object LoginRoute : NavKey
 
 @Serializable
+data object RegisterRoute : NavKey
+
+@Serializable
 data object CoursesRoute : NavKey
+
+@Serializable
+data object AuthorizerRoute : NavKey
 
 @Serializable
 data class ClassroomRoute(val roomName: String, val lessonTitle: String) : NavKey

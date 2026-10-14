@@ -21,11 +21,14 @@ import com.example.eduverse.data.EduVerseApi
 @Composable
 fun CourseListScreen(
     onOpenClassroom: (roomName: String, lessonTitle: String) -> Unit,
+    onOpenAuthorizer: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var courses by remember { mutableStateOf<List<Course>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    val user = EduVerseApi.currentSession
+    val isAuthorizer = user?.roles?.any { it.equals("Admin", ignoreCase = true) || it.equals("Instructor", ignoreCase = true) } == true
 
     LaunchedEffect(Unit) {
         val res = EduVerseApi.getCourses()
@@ -44,7 +47,6 @@ fun CourseListScreen(
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        val user = EduVerseApi.currentSession
                         Text(
                             text = "Logged in as ${user?.fullName ?: "Admin"}",
                             fontSize = 12.sp,
@@ -53,6 +55,17 @@ fun CourseListScreen(
                     }
                 },
                 actions = {
+                    if (isAuthorizer) {
+                        FilledTonalButton(
+                            onClick = onOpenAuthorizer,
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF8B5CF6).copy(alpha = 0.25f)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("🛡️ Authorize", color = Color(0xFFA78BFA), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     TextButton(onClick = onLogout) {
                         Text("Logout", color = Color(0xFFF87171), fontSize = 13.sp)
                     }
@@ -114,6 +127,53 @@ fun CourseListScreen(
                                     fontSize = 13.sp,
                                     color = Color.White.copy(alpha = 0.6f)
                                 )
+                            }
+                        }
+                    }
+                }
+
+                if (isAuthorizer) {
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1435)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("🛡️", fontSize = 18.sp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Student Authorization Portal",
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Review & confirm new student registrations.",
+                                        color = Color.White.copy(alpha = 0.65f),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Button(
+                                    onClick = onOpenAuthorizer,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Text("Open", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

@@ -31,10 +31,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.eduverse.data.EduVerseApi
+import kotlinx.coroutines.launch
 
 enum class ClassroomTab {
-    VIDEO, WHITEBOARD, CHAT
+    VIDEO, WHITEBOARD, CHAT, CONTROLS
 }
+
+data class LiveStudentState(
+    val id: String,
+    val name: String,
+    val isMicMuted: Boolean = false,
+    val isVideoOff: Boolean = false,
+    val isHandRaised: Boolean = false
+)
 
 data class DrawPath(
     val points: List<Offset>,
@@ -63,6 +72,19 @@ fun AndroidLiveClassroomScreen(
     var activeReaction by remember { mutableStateOf<String?>(null) }
     val user = EduVerseApi.currentSession
     val displayName = user?.fullName ?: "Student"
+    val isInstructor = user?.roles?.any { it.equals("Instructor", ignoreCase = true) || it.equals("Admin", ignoreCase = true) } == true
+    val scope = rememberCoroutineScope()
+    var isRoomLocked by remember { mutableStateOf(false) }
+    var controlFeedback by remember { mutableStateOf<String?>(null) }
+
+    val liveStudents = remember {
+        mutableStateListOf(
+            LiveStudentState("s-101", "Abebe Kebede", isMicMuted = false, isVideoOff = false, isHandRaised = true),
+            LiveStudentState("s-102", "Sara Tadesse", isMicMuted = false, isVideoOff = false, isHandRaised = false),
+            LiveStudentState("s-103", "Dawit Haile", isMicMuted = true, isVideoOff = false, isHandRaised = false),
+            LiveStudentState("s-104", "Hanan Mohammed", isMicMuted = false, isVideoOff = true, isHandRaised = true)
+        )
+    }
 
     // Whiteboard state
     val paths = remember { mutableStateListOf<DrawPath>() }
@@ -140,27 +162,46 @@ fun AndroidLiveClassroomScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Classroom Mode Tabs
-            TabRow(
-                selectedTabIndex = selectedTab.ordinal,
-                containerColor = Color(0xFF131326),
-                contentColor = Color(0xFF8B5CF6)
+            // Modern Segmented Classroom Mode Switcher
+            val tabs = remember(isInstructor) {
+                val list = mutableListOf(
+                    ClassroomTab.VIDEO to "📹 Video",
+                    ClassroomTab.WHITEBOARD to "🎨 Board",
+                    ClassroomTab.CHAT to "💬 Chat"
+                )
+                if (isInstructor) {
+                    list.add(ClassroomTab.CONTROLS to "🎓 Controls")
+                }
+                list
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0F0F1D))
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Tab(
-                    selected = selectedTab == ClassroomTab.VIDEO,
-                    onClick = { selectedTab = ClassroomTab.VIDEO },
-                    text = { Text("📹 Video Stage", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-                )
-                Tab(
-                    selected = selectedTab == ClassroomTab.WHITEBOARD,
-                    onClick = { selectedTab = ClassroomTab.WHITEBOARD },
-                    text = { Text("🎨 Whiteboard", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-                )
-                Tab(
-                    selected = selectedTab == ClassroomTab.CHAT,
-                    onClick = { selectedTab = ClassroomTab.CHAT },
-                    text = { Text("💬 Live Chat", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-                )
+                tabs.forEach { (tab, label) ->
+                    val isSelected = selectedTab == tab
+                    Surface(
+                        color = if (isSelected) Color(0xFF8B5CF6) else Color.White.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { selectedTab = tab }
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .padding(vertical = 8.dp)
+                                .wrapContentWidth(Alignment.CenterHorizontally)
+                        )
+                    }
+                }
             }
 
             // Main Content Area
@@ -500,6 +541,244 @@ fun AndroidLiveClassroomScreen(
                                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
                                     ) {
                                         Text("Send", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ClassroomTab.CONTROLS -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF0F0F1D))
+                                .padding(16.dp)
+                        ) {
+                            // Instructor Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "👨‍🏫 Live Student Controls",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "${liveStudents.size} students connected in live session",
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.6f)
+                                    )
+                                }
+
+                                FilledTonalButton(
+                                    onClick = {
+                                        isRoomLocked = !isRoomLocked
+                                        controlFeedback = if (isRoomLocked) "🔒 Room locked for new students." else "🔓 Room unlocked."
+                                    },
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = if (isRoomLocked) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.1f)
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = if (isRoomLocked) "🔒 Locked" else "🔓 Open",
+                                        fontSize = 11.sp,
+                                        color = if (isRoomLocked) Color(0xFFF87171) else Color.White
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Global Actions
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        liveStudents.indices.forEach { i ->
+                                            liveStudents[i] = liveStudents[i].copy(isMicMuted = true)
+                                        }
+                                        controlFeedback = "🔇 All student microphones muted by instructor."
+                                        scope.launch {
+                                            EduVerseApi.sendLiveControl("MUTE_ALL", "ALL", roomName)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.25f)),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    Text("🔇 Mute All", color = Color(0xFFF87171), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        liveStudents.indices.forEach { i ->
+                                            liveStudents[i] = liveStudents[i].copy(isHandRaised = false)
+                                        }
+                                        controlFeedback = "👇 All raised hands cleared."
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B).copy(alpha = 0.25f)),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    Text("👇 Clear Hands", color = Color(0xFFFBBF24), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            if (controlFeedback != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Surface(
+                                    color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = controlFeedback ?: "",
+                                        color = Color(0xFFA78BFA),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(8.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Student Roster with live controls
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(liveStudents, key = { it.id }) { student ->
+                                    Card(
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF151528)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Text(student.name.take(1), fontWeight = FontWeight.Bold, color = Color(0xFFA78BFA))
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                    Column {
+                                                        Text(student.name, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                                        Text(
+                                                            text = if (student.isHandRaised) "✋ Raised hand" else if (student.isMicMuted) "Mic muted" else "Active speaker",
+                                                            fontSize = 11.sp,
+                                                            color = if (student.isHandRaised) Color(0xFFFBBF24) else Color.White.copy(alpha = 0.5f)
+                                                        )
+                                                    }
+                                                }
+
+                                                if (student.isHandRaised) {
+                                                    Surface(
+                                                        color = Color(0xFFF59E0B).copy(alpha = 0.2f),
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    ) {
+                                                        Text("✋ ASKING", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24), modifier = Modifier.padding(4.dp))
+                                                    }
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            // Action Buttons for this student
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                // Mute / Unmute
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        val idx = liveStudents.indexOfFirst { it.id == student.id }
+                                                        if (idx != -1) {
+                                                            val updated = student.copy(isMicMuted = !student.isMicMuted)
+                                                            liveStudents[idx] = updated
+                                                            controlFeedback = "${if (updated.isMicMuted) "🔇 Muted" else "🔊 Unmuted"} ${student.name}"
+                                                            scope.launch {
+                                                                EduVerseApi.sendLiveControl(if (updated.isMicMuted) "MUTE" else "UNMUTE", student.id, roomName)
+                                                            }
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                                        containerColor = if (student.isMicMuted) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f)
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.weight(1f),
+                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = if (student.isMicMuted) "Unmute" else "Mute",
+                                                        fontSize = 11.sp,
+                                                        color = if (student.isMicMuted) Color(0xFFF87171) else Color.White
+                                                    )
+                                                }
+
+                                                // Video Off / On
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        val idx = liveStudents.indexOfFirst { it.id == student.id }
+                                                        if (idx != -1) {
+                                                            val updated = student.copy(isVideoOff = !student.isVideoOff)
+                                                            liveStudents[idx] = updated
+                                                            controlFeedback = "${if (updated.isVideoOff) "📷 Video Stopped" else "📹 Video Allowed"} for ${student.name}"
+                                                            scope.launch {
+                                                                EduVerseApi.sendLiveControl(if (updated.isVideoOff) "VIDEO_OFF" else "VIDEO_ON", student.id, roomName)
+                                                            }
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                                        containerColor = if (student.isVideoOff) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f)
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.weight(1f),
+                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = if (student.isVideoOff) "Enable Cam" else "Stop Cam",
+                                                        fontSize = 11.sp,
+                                                        color = if (student.isVideoOff) Color(0xFFF87171) else Color.White
+                                                    )
+                                                }
+
+                                                // Dismiss
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        liveStudents.remove(student)
+                                                        controlFeedback = "🚫 Dismissed ${student.name} from live room."
+                                                        scope.launch {
+                                                            EduVerseApi.sendLiveControl("DISMISS", student.id, roomName)
+                                                        }
+                                                    },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text("Dismiss", fontSize = 10.sp, color = Color(0xFFEF4444))
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
