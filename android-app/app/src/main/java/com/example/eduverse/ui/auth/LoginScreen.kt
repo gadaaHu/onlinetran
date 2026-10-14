@@ -117,11 +117,23 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Quick Demo Admin Autofill Button
+            var serverUrl by remember { mutableStateOf(EduVerseApi.baseUrl) }
+            var showServerConfig by remember { mutableStateOf(false) }
+
+            // Quick Actions: Server Config & Demo Admin Autofill Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                TextButton(onClick = { showServerConfig = !showServerConfig }) {
+                    Text(
+                        text = if (showServerConfig) "▲ Hide Server" else "⚙️ Server URL",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+
                 TextButton(
                     onClick = {
                         email = "admin@eduverse.com"
@@ -129,12 +141,36 @@ fun LoginScreen(
                     }
                 ) {
                     Text(
-                        text = "⚡ Autofill Admin Login",
+                        text = "⚡ Autofill Admin",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF8B5CF6)
                     )
                 }
+            }
+
+            if (showServerConfig) {
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = serverUrl,
+                    onValueChange = {
+                        serverUrl = it
+                        EduVerseApi.baseUrl = it.trim()
+                    },
+                    label = { Text("API URL (e.g. http://localhost:5083/api)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF8B5CF6),
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                        focusedLabelColor = Color(0xFF8B5CF6),
+                        unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
             }
 
             if (errorMessage != null) {

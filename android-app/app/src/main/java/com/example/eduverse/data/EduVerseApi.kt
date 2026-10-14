@@ -33,9 +33,9 @@ data class Lesson(
 )
 
 object EduVerseApi {
-    // 10.0.2.2 is the default Android emulator alias for localhost.
-    // For physical devices on the same Wi-Fi, change to host machine's IP (e.g. 192.168.x.x)
-    var baseUrl = "http://10.0.2.2:5083/api"
+    // When connected via USB with 'adb reverse tcp:5083 tcp:5083', localhost connects to PC.
+    // Can also be set to PC LAN IP (e.g. http://172.32.182.21:5083/api) or emulator http://10.0.2.2:5083/api
+    var baseUrl = "http://localhost:5083/api"
     var currentSession: UserSession? = null
 
     suspend fun login(email: String, pass: String): Result<UserSession> = withContext(Dispatchers.IO) {
