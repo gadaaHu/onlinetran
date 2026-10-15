@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/platform/jitsi_web.dart';
+import '../core/api_client.dart';
 
 /// Modern Full-Featured Virtual Classroom Suite.
 ///
@@ -34,6 +35,7 @@ class LiveClassroomScreen extends StatefulWidget {
 
 enum ClassroomViewMode { video, whiteboard, split }
 enum SidebarTab { chat, participants, notes, polls }
+enum MobileClassroomTab { video, whiteboard, chat, students }
 
 class _LiveClassroomScreenState extends State<LiveClassroomScreen>
     with TickerProviderStateMixin {
@@ -46,8 +48,17 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
 
   // Classroom modes & sidebar state
   ClassroomViewMode _viewMode = ClassroomViewMode.video;
+  MobileClassroomTab _mobileTab = MobileClassroomTab.video;
   bool _isSidebarOpen = true;
   SidebarTab _activeTab = SidebarTab.chat;
+
+  // Live Student Presence state matching Android Mobile App
+  List<LiveStudentPresence> _liveStudents = List.from(sampleLiveStudents);
+  bool _isCheckingPresence = false;
+  String _presenceFilter = 'ALL';
+  bool _isRoomLocked = false;
+  String? _controlFeedback;
+  Timer? _heartbeatTimer;
 
   // Local device toggles (visual indicators)
   bool _isMicMuted = false;
@@ -121,6 +132,19 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
       if (mounted) setState(() => _elapsedSeconds++);
     });
 
+    // Fetch initial live presence and periodically send heartbeat
+    _refreshLivePresence();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      ApiClient.sendLiveHeartbeat(
+        roomName: widget.roomName,
+        isFaceDetected: _isFaceDetected,
+        faceCount: _isFaceDetected ? 1 : 0,
+        isMicMuted: _isMicMuted,
+        isVideoOff: _isCameraOff,
+        isHandRaised: _isHandRaised,
+      );
+    });
+
     // Periodic AI Face Detection Verification (simulates real-time biometric tracking)
     _faceCheckTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (!mounted) return;
@@ -138,10 +162,22 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
     });
   }
 
+  Future<void> _refreshLivePresence() async {
+    if (!mounted) return;
+    setState(() => _isCheckingPresence = true);
+    final list = await ApiClient.getLivePresence(widget.roomName);
+    if (!mounted) return;
+    setState(() {
+      _liveStudents = list;
+      _isCheckingPresence = false;
+    });
+  }
+
   @override
   void dispose() {
     _sessionTimer?.cancel();
     _faceCheckTimer?.cancel();
+    _heartbeatTimer?.cancel();
     _chatController.dispose();
     _chatScrollController.dispose();
     _notesController.dispose();
@@ -206,28 +242,57 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
       appBar: _buildModernAppBar(context),
       body: Stack(
         children: [
-          // ── Main Layout: Stage (Left) + Collapsible Sidebar (Right) ─────
-          Row(
-            children: [
-              // Main Stage Area
-              Expanded(
-                flex: 7,
-                child: Column(
-                  children: [
-                    Expanded(child: _buildStageContent(isWide)),
-                    _buildBottomControlDock(),
-                  ],
+          if (isWide)
+            // ── Desktop Layout: Stage (Left) + Collapsible Sidebar (Right) ─────
+            Row(
+              children: [
+                Expanded(
+                  flex: 7,
+                  child: Column(
+                    children: [
+                      Expanded(child: _buildStageContent(isWide)),
+                      _buildBottomControlDock(),
+                    ],
+                  ),
                 ),
-              ),
-
-              // Sidebar Area (collapsible)
-              if (_isSidebarOpen && isWide)
-                SizedBox(
-                  width: 360,
-                  child: _buildSidebarPanel(),
+                if (_isSidebarOpen)
+                  SizedBox(
+                    width: 380,
+                    child: _buildSidebarPanel(),
+                  ),
+              ],
+            )
+          else
+            // ── Mobile Layout: Mobile Tab Switcher + Selected View + Dock ──────
+            Column(
+              children: [
+                // Top Segmented Mode Selector matching Android Mobile App
+                Container(
+                  color: const Color(0xFF0F0F1D),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    children: [
+                      _buildMobileTabPill(MobileClassroomTab.video, "📹 Video"),
+                      const SizedBox(width: 6),
+                      _buildMobileTabPill(MobileClassroomTab.whiteboard, "🎨 Board"),
+                      const SizedBox(width: 6),
+                      _buildMobileTabPill(MobileClassroomTab.chat, "💬 Chat"),
+                      const SizedBox(width: 6),
+                      _buildMobileTabPill(MobileClassroomTab.students, "👥 Students"),
+                    ],
+                  ),
                 ),
-            ],
-          ),
+                Expanded(
+                  child: switch (_mobileTab) {
+                    MobileClassroomTab.video => _buildVideoView(),
+                    MobileClassroomTab.whiteboard => _buildInteractiveWhiteboard(),
+                    MobileClassroomTab.chat => _buildChatTab(),
+                    MobileClassroomTab.students => _buildParticipantsTab(),
+                  },
+                ),
+                _buildBottomControlDock(),
+              ],
+            ),
 
           // Floating Animated Reaction Overlay
           ..._reactions.map((r) => _buildFloatingReactionWidget(r)),
@@ -236,8 +301,36 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
           if (_isJoining) _buildJoiningSplash(),
         ],
       ),
-      // Mobile Drawer fallback for sidebar if on narrow screen
-      endDrawer: (!isWide && _isSidebarOpen) ? Drawer(child: _buildSidebarPanel()) : null,
+    );
+  }
+
+  Widget _buildMobileTabPill(MobileClassroomTab tab, String label) {
+    final isSelected = _mobileTab == tab;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _mobileTab = tab),
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF8B5CF6) : Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF8B5CF6) : Colors.white.withValues(alpha: 0.12),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? Colors.white : Colors.white70,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1181,282 +1274,692 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
     );
   }
 
-  // ── Tab 2: Participants Roster ────────────────────────────────────────────
+  // ── Tab 2: Student Live Presence (Exact parity with Android Mobile App) ─────
   Widget _buildParticipantsTab() {
-    final participants = [
-      _Participant(
-        name: "${widget.displayName} (You)",
-        isHost: widget.isHost,
-        isHandRaised: _isHandRaised,
-        faceDetected: _isFaceDetected,
-        attentionScore: _faceConfidence,
-        faceStatus: _isFaceDetected ? "Verified Present" : "Camera Off / Absent",
-      ),
-      _Participant(
-        name: widget.isHost ? "Sara Al-Mansoor (Student)" : "Professor Alex Turner (Instructor)",
-        isHost: !widget.isHost,
-        isHandRaised: false,
-        faceDetected: true,
-        attentionScore: 0.99,
-        faceStatus: "Verified Present",
-      ),
-      _Participant(
-        name: "Amina Kebede",
-        isHost: false,
-        isHandRaised: true,
-        faceDetected: true,
-        attentionScore: 0.95,
-        faceStatus: "Verified Present",
-      ),
-      _Participant(
-        name: "David Chen",
-        isHost: false,
-        isHandRaised: false,
-        faceDetected: true,
-        attentionScore: 0.91,
-        faceStatus: "Verified Present",
-      ),
-      _Participant(
-        name: "Sara Al-Mansoor",
-        isHost: false,
-        isHandRaised: false,
-        faceDetected: true,
-        attentionScore: 0.94,
-        faceStatus: "Verified Present",
-      ),
-      _Participant(
-        name: "Michael Scott",
-        isHost: false,
-        isHandRaised: false,
-        faceDetected: false,
-        attentionScore: 0.12,
-        faceStatus: "⚠️ Away from camera",
-      ),
-      _Participant(
-        name: "Bethany Walker",
-        isHost: false,
-        isHandRaised: true,
-        faceDetected: true,
-        attentionScore: 0.97,
-        faceStatus: "Verified Present",
-      ),
-    ];
+    final onlineCount = _liveStudents.where((s) => s.isOnline).length;
+    final offlineCount = _liveStudents.where((s) => !s.isOnline).length;
+    final verifiedCount = _liveStudents.where((s) => s.isFaceVerified).length;
+    final handsCount = _liveStudents.where((s) => s.isHandRaised).length;
 
-    final detectedCount = participants.where((p) => p.faceDetected).length;
+    final filteredStudents = switch (_presenceFilter) {
+      'ONLINE' => _liveStudents.where((s) => s.isOnline).toList(),
+      'OFFLINE' => _liveStudents.where((s) => !s.isOnline).toList(),
+      'HANDS' => _liveStudents.where((s) => s.isHandRaised).toList(),
+      _ => _liveStudents,
+    };
 
-    return Column(
-      children: [
-        // AI Face Attendance Summary Card
-        Container(
-          margin: const EdgeInsets.fromLTRB(10, 10, 10, 4),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF131326),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      color: const Color(0xFF0F0F1D),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Header & Action Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Text("🔍", style: TextStyle(fontSize: 14)),
-                      const SizedBox(width: 6),
-                      Text(
-                        "AI Face Attendance",
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text("👥", style: TextStyle(fontSize: 16)),
+                        const SizedBox(width: 6),
+                        Text(
+                          "Student Live Presence",
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.emerald.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.emerald.withValues(alpha: 0.3)),
+                      ],
                     ),
-                    child: Text(
-                      "$detectedCount / ${participants.length} Active",
+                    const SizedBox(height: 2),
+                    Text(
+                      "$onlineCount Online • $offlineCount Offline • Face Verification Active",
                       style: GoogleFonts.inter(
-                        color: AppColors.emerald,
                         fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white60,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: detectedCount / participants.length,
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.emerald),
-                  minHeight: 5,
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    widget.isHost ? "Instructor View: Live Face Verification" : "Student View: Face Verified",
-                    style: GoogleFonts.inter(fontSize: 10, color: Colors.white54),
-                  ),
-                  if (widget.isHost)
-                    InkWell(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("📢 Prompted students without active face to check camera."),
-                            backgroundColor: AppColors.violet,
+                  // Live Check button
+                  ElevatedButton(
+                    onPressed: _isCheckingPresence ? null : _refreshLivePresence,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
+                      foregroundColor: const Color(0xFFA78BFA),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isCheckingPresence) ...[
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFA78BFA)),
                           ),
-                        );
-                      },
-                      child: Text(
-                        "Nudge Inactive",
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.violet,
+                          const SizedBox(width: 4),
+                        ] else ...[
+                          const Text("⚡ ", style: TextStyle(fontSize: 11)),
+                        ],
+                        Text(
+                          _isCheckingPresence ? "Checking..." : "Live Check",
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold),
                         ),
+                      ],
+                    ),
+                  ),
+                  if (widget.isHost) ...[
+                    const SizedBox(width: 6),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isRoomLocked = !_isRoomLocked;
+                          _controlFeedback = _isRoomLocked
+                              ? "🔒 Room locked for new students."
+                              : "🔓 Room unlocked.";
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isRoomLocked
+                            ? const Color(0xFFEF4444).withValues(alpha: 0.2)
+                            : Colors.white.withValues(alpha: 0.1),
+                        foregroundColor: _isRoomLocked ? const Color(0xFFF87171) : Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        _isRoomLocked ? "🔒 Locked" : "🔓 Open",
+                        style: GoogleFonts.inter(fontSize: 11),
                       ),
                     ),
+                  ],
                 ],
               ),
             ],
           ),
-        ),
 
-        if (widget.isHost)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("🔇 All students have been muted.")),
-                  );
-                },
-                icon: const Icon(Icons.mic_off_rounded, size: 14, color: AppColors.rose),
-                label: Text(
-                  "Mute All Students",
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.rose),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.rose.withValues(alpha: 0.4)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
+          const SizedBox(height: 10),
+
+          // ── Feedback Banner (if toggled)
+          if (_controlFeedback != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _controlFeedback!,
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 11),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => setState(() => _controlFeedback = null),
+                    child: const Icon(Icons.close, size: 14, color: Colors.white70),
+                  ),
+                ],
               ),
             ),
+          ],
+
+          // ── Live Presence KPI Strip (Single-line 4 cards matching Android)
+          Row(
+            children: [
+              _buildKpiCard(
+                dotColor: const Color(0xFF10B981),
+                count: "$onlineCount",
+                label: "Online",
+                countColor: const Color(0xFF34D399),
+                bgColor: const Color(0xFF10B981).withValues(alpha: 0.15),
+                borderColor: const Color(0xFF10B981).withValues(alpha: 0.35),
+              ),
+              const SizedBox(width: 6),
+              _buildKpiCard(
+                dotColor: const Color(0xFF94A3B8),
+                count: "$offlineCount",
+                label: "Offline",
+                countColor: const Color(0xFFCBD5E1),
+                bgColor: Colors.white.withValues(alpha: 0.05),
+                borderColor: Colors.white.withValues(alpha: 0.15),
+              ),
+              const SizedBox(width: 6),
+              _buildKpiCard(
+                icon: "👤",
+                count: "$verifiedCount",
+                label: "Verified",
+                countColor: const Color(0xFFA5B4FC),
+                bgColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                borderColor: const Color(0xFF6366F1).withValues(alpha: 0.35),
+              ),
+              const SizedBox(width: 6),
+              _buildKpiCard(
+                icon: "✋",
+                count: "$handsCount",
+                label: "Hands",
+                countColor: const Color(0xFFFBBF24),
+                bgColor: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                borderColor: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+              ),
+            ],
           ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: participants.length,
-            separatorBuilder: (_, __) => Divider(color: Colors.white.withValues(alpha: 0.05)),
-            itemBuilder: (context, idx) {
-              final p = participants[idx];
-              return ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: p.isHost ? AppColors.rose : AppColors.indigo,
-                      child: Text(
-                        p.name[0],
-                        style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
+
+          const SizedBox(height: 10),
+
+          // ── Filter Pills Row (Horizontally Scrollable)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterPill("ALL", "All (${_liveStudents.length})"),
+                const SizedBox(width: 6),
+                _buildFilterPill("ONLINE", "🟢 Online ($onlineCount)"),
+                const SizedBox(width: 6),
+                _buildFilterPill("OFFLINE", "⚪ Offline ($offlineCount)"),
+                const SizedBox(width: 6),
+                _buildFilterPill("HANDS", "✋ Hands ($handsCount)"),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // ── Student List
+          Expanded(
+            child: filteredStudents.isEmpty
+                ? Center(
+                    child: Text(
+                      "No students in this filter.",
+                      style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
                     ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: p.faceDetected ? AppColors.emerald : AppColors.rose,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF0F0F1D), width: 1.5),
-                        ),
-                      ),
-                    ),
-                  ],
+                  )
+                : ListView.builder(
+                    itemCount: filteredStudents.length,
+                    itemBuilder: (context, idx) {
+                      final student = filteredStudents[idx];
+                      return _buildStudentCard(student);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKpiCard({
+    String? icon,
+    Color? dotColor,
+    required String count,
+    required String label,
+    required Color countColor,
+    required Color bgColor,
+    required Color borderColor,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (dotColor != null) ...[
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 4),
+                ] else if (icon != null) ...[
+                  Text(icon, style: const TextStyle(fontSize: 11)),
+                  const SizedBox(width: 3),
+                ],
+                Text(
+                  count,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: countColor,
+                  ),
                 ),
-                title: Row(
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: GoogleFonts.inter(fontSize: 10, color: Colors.white70),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterPill(String key, String label) {
+    final isSelected = _presenceFilter == key;
+    return InkWell(
+      onTap: () => setState(() => _presenceFilter = key),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF8B5CF6) : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF8B5CF6) : Colors.white.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            color: isSelected ? Colors.white : Colors.white70,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudentCard(LiveStudentPresence student) {
+    final colors = _getStudentAvatarGradient(student.name);
+    final initials = _getStudentInitials(student.name);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141426),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: student.isOnline
+              ? const Color(0xFF10B981).withValues(alpha: 0.35)
+              : Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Distinct Colorful Avatar with Live Ring
+          Stack(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: colors),
+                  border: Border.all(
+                    color: student.isOnline ? const Color(0xFF10B981) : const Color(0xFF64748B),
+                    width: 2,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initials,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: student.isOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFF141426), width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+
+          // Details Column
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
                     Flexible(
                       child: Text(
-                        p.name,
-                        style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                        student.name,
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (p.isHost) ...[
-                      const SizedBox(width: 4),
+                    if (student.isHandRaised) ...[
+                      const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.rose.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
                         ),
-                        child: Text(
-                          "HOST",
-                          style: GoogleFonts.inter(fontSize: 9, color: AppColors.rose, fontWeight: FontWeight.w700),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text("✋", style: TextStyle(fontSize: 10)),
+                            const SizedBox(width: 2),
+                            Text(
+                              "Hand Raised",
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFFBBF24),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ],
                 ),
-                subtitle: Text(
-                  p.faceDetected
-                      ? "🟢 ${p.faceStatus} (${(p.attentionScore * 100).toInt()}%)"
-                      : "🔴 ${p.faceStatus}",
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: p.faceDetected ? AppColors.emerald : AppColors.rose,
-                  ),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+                const SizedBox(height: 3),
+                Row(
                   children: [
-                    if (p.isHandRaised)
-                      Container(
-                        margin: const EdgeInsets.only(right: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.amber.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text("✋", style: TextStyle(fontSize: 11)),
-                            const SizedBox(width: 2),
-                            Text("Hand", style: GoogleFonts.inter(color: AppColors.amber, fontSize: 10)),
-                          ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        student.studentId,
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFFA5B4FC),
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    const Icon(Icons.mic_off_rounded, size: 16, color: Colors.white38),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        student.email,
+                        style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
-              );
-            },
+                const SizedBox(height: 6),
+                // Chips for status & attendance
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    // Face Verification
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: student.isFaceVerified
+                            ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                            : Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            student.isFaceVerified ? Icons.verified_user_rounded : Icons.face_outlined,
+                            size: 11,
+                            color: student.isFaceVerified ? const Color(0xFF34D399) : Colors.white60,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            student.isFaceVerified ? "Verified" : "Unverified",
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: student.isFaceVerified ? const Color(0xFF34D399) : Colors.white60,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Attendance rate
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        "${student.attendanceRate}% Historical Rate",
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFA78BFA),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+
+          // View Profile Icon
+          IconButton(
+            icon: const Icon(Icons.info_outline_rounded, color: Colors.white70, size: 20),
+            tooltip: "View Profile",
+            onPressed: () => _showStudentProfileDialog(student),
+          ),
+        ],
+      ),
     );
+  }
+
+  void _showStudentProfileDialog(LiveStudentPresence student) {
+    final colors = _getStudentAvatarGradient(student.name);
+    final initials = _getStudentInitials(student.name);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF18182E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: colors),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                initials,
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    student.name,
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    student.studentId,
+                    style: GoogleFonts.inter(color: const Color(0xFFA5B4FC), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(color: Colors.white12),
+            const SizedBox(height: 6),
+            _buildDialogRow("Email:", student.email),
+            _buildDialogRow(
+              "Presence Status:",
+              student.isOnline ? "🟢 Live in Room" : "⚪ Offline",
+              valueColor: student.isOnline ? const Color(0xFF34D399) : Colors.white60,
+            ),
+            _buildDialogRow(
+              "Biometric Face Status:",
+              student.isFaceVerified ? "👤 Active Face Verified (100%)" : "⚠️ Camera off / Unverified",
+              valueColor: student.isFaceVerified ? const Color(0xFFA5B4FC) : const Color(0xFFF87171),
+            ),
+            _buildDialogRow(
+              "Hand Raise:",
+              student.isHandRaised ? "✋ Hand Currently Raised" : "Lowered",
+              valueColor: student.isHandRaised ? const Color(0xFFFBBF24) : Colors.white60,
+            ),
+            _buildDialogRow("Attendance Record:", "${student.attendanceRate}% Historical Rate", valueColor: const Color(0xFFA78BFA)),
+            _buildDialogRow("Hardware / Device:", student.deviceInfo),
+            if (widget.isHost) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("🔇 Muted audio for ${student.name}")),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFEF4444)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: Text("Mute Student", style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFEF4444))),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("📢 Prompted ${student.name} to verify camera.")),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8B5CF6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: Text("Prompt Verify", style: GoogleFonts.inter(fontSize: 11, color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Close", style: GoogleFonts.inter(color: Colors.white70)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: GoogleFonts.inter(fontSize: 12, color: Colors.white60)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: valueColor ?? Colors.white,
+              ),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Color> _getStudentAvatarGradient(String name) {
+    final hash = name.hashCode.abs();
+    final palettes = [
+      [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
+      [const Color(0xFFEC4899), const Color(0xFFF43F5E)],
+      [const Color(0xFF10B981), const Color(0xFF06B6D4)],
+      [const Color(0xFFF59E0B), const Color(0xFFD97706)],
+      [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+      [const Color(0xFF8B5CF6), const Color(0xFFC084FC)],
+    ];
+    return palettes[hash % palettes.length];
+  }
+
+  String _getStudentInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts[0].isEmpty) return '?';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 
   // ── Tab 3: Personal Notes ─────────────────────────────────────────────────
@@ -1780,23 +2283,6 @@ class _ChatMessage {
   });
 }
 
-class _Participant {
-  final String name;
-  final bool isHost;
-  final bool isHandRaised;
-  final bool faceDetected;
-  final double attentionScore;
-  final String faceStatus;
-
-  _Participant({
-    required this.name,
-    required this.isHost,
-    required this.isHandRaised,
-    this.faceDetected = true,
-    this.attentionScore = 0.95,
-    this.faceStatus = "Face Verified",
-  });
-}
 
 class _PollOption {
   final String text;
