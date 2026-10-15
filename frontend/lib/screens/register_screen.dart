@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/providers.dart';
 import '../core/theme.dart';
-import 'home_screen.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -56,17 +56,81 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final success = await ref.read(authProvider.notifier).register(
+    final res = await ref.read(authProvider.notifier).register(
         _firstNameCtrl.text.trim(),
         _lastNameCtrl.text.trim(),
         _emailCtrl.text.trim(),
         _passCtrl.text,
         _isInstructor);
-    if (success && mounted) {
-      Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (_) => false);
+    if ((res['success'] == true) && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: const Color(0xFF131326),
+          title: const Row(
+            children: [
+              Text('🎉', style: TextStyle(fontSize: 24)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text('Registration Submitted',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                res['message']?.toString() ??
+                    'Registration successful! Your student account is pending confirmation by the authorizer.',
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 14, height: 1.4),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+                ),
+                child: const Text(
+                  'Status: PENDING AUTHORIZATION\nAn Admin or Authorizer can now confirm your account.',
+                  style: TextStyle(
+                      color: Color(0xFFFBBF24), fontSize: 12, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8B5CF6),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+              child: const Text('Return to Sign In',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -174,7 +238,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                                 style: GoogleFonts.inter(
                                     color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280), 
                                     fontSize: 15)),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 20),
+                            
+                            // Approval Notice Banner (matching Android)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Text('🛡️', style: TextStyle(fontSize: 18)),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Student accounts require approval by an Authorizer/Admin before logging in.',
+                                      style: TextStyle(
+                                          color: Color(0xFFA78BFA),
+                                          fontSize: 12,
+                                          height: 1.3),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
                             
                             // Fields
                             Row(

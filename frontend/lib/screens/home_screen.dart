@@ -11,6 +11,7 @@ import 'create_course_screen.dart';
 import 'admin_screen.dart';
 import 'student_dashboard_screen.dart';
 import 'notifications_screen.dart';
+import 'authorizer_screen.dart';
 
 // ─── Enrolled Courses Provider moved to providers.dart ────────────────────────
 
@@ -143,6 +144,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               context,
               MaterialPageRoute(
                   builder: (_) => const NotificationsScreen()),
+            ),
+          ),
+        const SizedBox(width: 4),
+        // Authorizer Portal (Admins & Instructors)
+        if (user != null &&
+            user.roles.any((r) =>
+                r.toLowerCase() == 'admin' ||
+                r.toLowerCase() == 'instructor' ||
+                r.toLowerCase() == 'authorizer'))
+          IconButton(
+            icon: const Icon(Icons.shield_outlined, color: Color(0xFF10B981)),
+            tooltip: 'Authorizer Portal',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AuthorizerScreen()),
             ),
           ),
         const SizedBox(width: 4),

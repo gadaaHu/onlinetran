@@ -30,13 +30,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(user: user, isLoading: false);
       return true;
     } catch (e) {
-      state = state.copyWith(
-          isLoading: false, error: 'Invalid email or password.');
+      String msg = 'Invalid email or password.';
+      if (e is DioException && e.response?.data != null) {
+        final data = e.response!.data;
+        if (data is Map) {
+          if (data['message'] != null) {
+            msg = data['message'].toString();
+          } else if (data['Message'] != null) {
+            msg = data['Message'].toString();
+          }
+        }
+      }
+      state = state.copyWith(isLoading: false, error: msg);
       return false;
     }
   }
 
-  Future<bool> register(
+  Future<Map<String, dynamic>> register(
       String firstName, String lastName, String email, String password, bool isInstructor) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -47,10 +57,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'password': password,
         'isInstructor': isInstructor,
       });
-      final user = AuthUser.fromJson(res.data);
-      await ApiClient.saveToken(user.token);
-      state = state.copyWith(user: user, isLoading: false);
-      return true;
+      String successMsg =
+          'Registration successful! Your student account is pending confirmation by the authorizer.';
+      if (res.data is Map) {
+        if (res.data['message'] != null) {
+          successMsg = res.data['message'].toString();
+        } else if (res.data['Message'] != null) {
+          successMsg = res.data['Message'].toString();
+        }
+      }
+      state = state.copyWith(isLoading: false, error: null);
+      return {'success': true, 'message': successMsg};
     } catch (e) {
       String errorMessage = 'Registration failed.';
       if (e is DioException && e.response?.data != null) {
@@ -61,11 +78,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
             errorMessage = errors.join('\n');
           } else if (data['message'] != null) {
             errorMessage = data['message'].toString();
+          } else if (data['Message'] != null) {
+            errorMessage = data['Message'].toString();
           }
         }
       }
       state = state.copyWith(isLoading: false, error: errorMessage);
-      return false;
+      return {'success': false, 'message': errorMessage};
     }
   }
 
