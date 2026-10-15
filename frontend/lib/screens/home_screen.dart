@@ -813,6 +813,9 @@ class _TeachingTab extends ConsumerWidget {
             ),
           ),
         ),
+        // ── Broadcast Class Schedule Card (mirrors Android CourseListScreen) ─
+        const SliverToBoxAdapter(child: _BroadcastScheduleCard()),
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
         teachingCourses.when(
           loading: () => SliverFillRemaining(
             child: Center(
@@ -849,6 +852,223 @@ class _TeachingTab extends ConsumerWidget {
                 ),
         ),
       ],
+    );
+  }
+}
+
+// ─── Broadcast Schedule Card ──────────────────────────────────────────────────
+class _BroadcastScheduleCard extends StatefulWidget {
+  const _BroadcastScheduleCard();
+
+  @override
+  State<_BroadcastScheduleCard> createState() => _BroadcastScheduleCardState();
+}
+
+class _BroadcastScheduleCardState extends State<_BroadcastScheduleCard> {
+  final _timeCtrl = TextEditingController(text: 'Today at 4:00 PM');
+  final _topicCtrl =
+      TextEditingController(text: 'Live Interactive Training & Lab');
+  bool _isSending = false;
+  String? _status;
+
+  static const _presets = [
+    'Today 4:00 PM',
+    'Today 7:00 PM',
+    'Tomorrow 10:00 AM'
+  ];
+
+  @override
+  void dispose() {
+    _timeCtrl.dispose();
+    _topicCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    if (_isSending || _timeCtrl.text.trim().isEmpty) return;
+    setState(() {
+      _isSending = true;
+      _status = 'Broadcasting to all students...';
+    });
+    try {
+      final msg = await ApiClient.broadcastClassTime(
+        classTime: _timeCtrl.text.trim(),
+        topic: _topicCtrl.text.trim(),
+      );
+      setState(() => _status = '✅ $msg');
+    } catch (e) {
+      setState(() =>
+          _status = '❌ ${e.toString().replaceFirst('Exception: ', '')}');
+    } finally {
+      setState(() => _isSending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isSuccess = _status?.startsWith('✅') ?? false;
+    final isError = _status?.startsWith('❌') ?? false;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCard : AppColors.lightCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+          ),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.access_time_rounded,
+                      color: Color(0xFF3B82F6), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Broadcast Class Schedule',
+                          style: GoogleFonts.inter(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14)),
+                      Text('Send live class time simultaneously to all students.',
+                          style: GoogleFonts.inter(
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.55),
+                              fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _timeCtrl,
+              style:
+                  GoogleFonts.inter(color: colorScheme.onSurface, fontSize: 13),
+              decoration: InputDecoration(
+                labelText: 'Class Time',
+                labelStyle: GoogleFonts.inter(
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
+                    fontSize: 13),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              children: _presets.map((preset) {
+                final selected = _timeCtrl.text == preset;
+                return GestureDetector(
+                  onTap: () => setState(() => _timeCtrl.text = preset),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.indigo
+                          : colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(preset,
+                        style: GoogleFonts.inter(
+                            color: selected
+                                ? Colors.white
+                                : colorScheme.onSurface
+                                    .withValues(alpha: 0.65),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _topicCtrl,
+              style:
+                  GoogleFonts.inter(color: colorScheme.onSurface, fontSize: 13),
+              decoration: InputDecoration(
+                labelText: 'Lesson / Topic',
+                labelStyle: GoogleFonts.inter(
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
+                    fontSize: 13),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                isDense: true,
+              ),
+            ),
+            if (_status != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _status!,
+                style: GoogleFonts.inter(
+                  color: isSuccess
+                      ? const Color(0xFF10B981)
+                      : isError
+                          ? const Color(0xFFEF4444)
+                          : colorScheme.onSurface.withValues(alpha: 0.6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isSending ? null : _send,
+                icon: _isSending
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.send_rounded,
+                        size: 16, color: Colors.white),
+                label: Text(
+                  _isSending ? 'Sending...' : 'Send to All Students',
+                  style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  disabledBackgroundColor:
+                      const Color(0xFF2563EB).withValues(alpha: 0.5),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
