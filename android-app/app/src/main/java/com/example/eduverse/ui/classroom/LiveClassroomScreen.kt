@@ -12,6 +12,8 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -850,7 +852,7 @@ fun AndroidLiveClassroomScreen(
                             // ── Live Presence KPI Strip
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 // Online KPI
                                 Surface(
@@ -859,12 +861,15 @@ fun AndroidLiveClassroomScreen(
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF10B981)))
                                             Text("$onlineCount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
                                         }
-                                        Text("Live Online", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                        Text("Online", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), maxLines = 1)
                                     }
                                 }
 
@@ -875,12 +880,15 @@ fun AndroidLiveClassroomScreen(
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF94A3B8)))
                                             Text("$offlineCount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFCBD5E1))
                                         }
-                                        Text("Offline", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                        Text("Offline", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), maxLines = 1)
                                     }
                                 }
 
@@ -891,12 +899,15 @@ fun AndroidLiveClassroomScreen(
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.35f)),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Text("👤", fontSize = 11.sp)
                                             Text("$verifiedCount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA5B4FC))
                                         }
-                                        Text("Face Verified", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                        Text("Verified", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), maxLines = 1)
                                     }
                                 }
 
@@ -907,22 +918,27 @@ fun AndroidLiveClassroomScreen(
                                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.35f)),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Text("✋", fontSize = 11.sp)
                                             Text("$handsCount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
                                         }
-                                        Text("Hands", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                        Text("Hands", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), maxLines = 1)
                                     }
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // ── Filter Pills Row
+                            // ── Filter Pills Row (Horizontally Scrollable)
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 val filters = listOf(
                                     "ALL" to "All (${liveStudents.size})",
@@ -943,10 +959,12 @@ fun AndroidLiveClassroomScreen(
                                     ) {
                                         Text(
                                             text = label,
-                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f),
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                                         )
                                     }
                                 }
@@ -1043,7 +1061,20 @@ fun AndroidLiveClassroomScreen(
                                                                 fontSize = 14.sp
                                                             )
                                                             if (student.isHandRaised) {
-                                                                Text("✋", fontSize = 12.sp)
+                                                                Surface(
+                                                                    color = Color(0xFFF59E0B).copy(alpha = 0.2f),
+                                                                    shape = RoundedCornerShape(6.dp),
+                                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                                                                ) {
+                                                                    Row(
+                                                                        verticalAlignment = Alignment.CenterVertically,
+                                                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                                    ) {
+                                                                        Text("✋", fontSize = 10.sp)
+                                                                        Text("Hand Raised", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                                                                    }
+                                                                }
                                                             }
                                                         }
 
