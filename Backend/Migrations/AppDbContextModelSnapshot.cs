@@ -156,7 +156,8 @@ namespace LmsApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("InstructorId");
+                    b.HasIndex("InstructorId")
+                        .HasDatabaseName("IX_Courses_InstructorId");
 
                     b.ToTable("Courses");
                 });
@@ -184,9 +185,11 @@ namespace LmsApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CourseId");
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("IX_CourseEnrollments_CourseId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_CourseEnrollments_UserId");
 
                     b.ToTable("CourseEnrollments");
                 });
@@ -226,9 +229,97 @@ namespace LmsApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CourseId");
+                    b.HasIndex("CourseId", "Order")
+                        .HasDatabaseName("IX_Lessons_CourseId_Order");
 
                     b.ToTable("Lessons");
+                });
+
+            modelBuilder.Entity("LmsApi.Models.LessonProgress", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LessonId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("WatchedSeconds")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("LessonId");
+
+                    b.HasIndex("UserId", "CourseId")
+                        .HasDatabaseName("IX_LessonProgress_UserId_CourseId");
+
+                    b.HasIndex("UserId", "LessonId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_LessonProgress_UserId_LessonId");
+
+                    b.ToTable("LessonProgresses");
+                });
+
+            modelBuilder.Entity("LmsApi.Models.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActionUrl")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "IsRead")
+                        .HasDatabaseName("IX_Notifications_UserId_IsRead");
+
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("LmsApi.Models.Question", b =>
@@ -248,7 +339,8 @@ namespace LmsApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("QuizId");
+                    b.HasIndex("QuizId")
+                        .HasDatabaseName("IX_Questions_QuizId");
 
                     b.ToTable("Questions");
                 });
@@ -273,7 +365,8 @@ namespace LmsApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CourseId");
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("IX_Quizzes_CourseId");
 
                     b.ToTable("Quizzes");
                 });
@@ -306,7 +399,8 @@ namespace LmsApi.Migrations
 
                     b.HasIndex("QuizId");
 
-                    b.HasIndex("StudentId");
+                    b.HasIndex("StudentId", "QuizId")
+                        .HasDatabaseName("IX_QuizResults_StudentId_QuizId");
 
                     b.ToTable("QuizResults");
                 });
@@ -493,6 +587,44 @@ namespace LmsApi.Migrations
                         .IsRequired();
 
                     b.Navigation("Course");
+                });
+
+            modelBuilder.Entity("LmsApi.Models.LessonProgress", b =>
+                {
+                    b.HasOne("LmsApi.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LmsApi.Models.Lesson", "Lesson")
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LmsApi.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Lesson");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("LmsApi.Models.Notification", b =>
+                {
+                    b.HasOne("LmsApi.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("LmsApi.Models.Question", b =>

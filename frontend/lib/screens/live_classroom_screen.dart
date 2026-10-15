@@ -63,6 +63,13 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
   final ScrollController _chatScrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
 
+  // AI Face Detection state
+  bool _isFaceDetectionActive = true;
+  bool _isFaceDetected = true;
+  double _faceConfidence = 0.96;
+  bool _showFaceOverlay = true;
+  Timer? _faceCheckTimer;
+
   // Whiteboard drawing state
   final List<_WhiteboardStroke> _strokes = [];
   Color _penColor = const Color(0xFF8B5CF6);
@@ -113,11 +120,28 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _elapsedSeconds++);
     });
+
+    // Periodic AI Face Detection Verification (simulates real-time biometric tracking)
+    _faceCheckTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (!mounted) return;
+      if (_isCameraOff) {
+        setState(() {
+          _isFaceDetected = false;
+          _faceConfidence = 0.0;
+        });
+      } else {
+        setState(() {
+          _isFaceDetected = true;
+          _faceConfidence = 0.94 + (timer.tick % 5) * 0.01;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _sessionTimer?.cancel();
+    _faceCheckTimer?.cancel();
     _chatController.dispose();
     _chatScrollController.dispose();
     _notesController.dispose();
@@ -422,7 +446,185 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       clipBehavior: Clip.antiAlias,
-      child: HtmlElementView(viewType: _viewId),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          HtmlElementView(viewType: _viewId),
+
+          // Face Detection HUD: Status Chip for Student / Instructor
+          if (_isFaceDetectionActive)
+            Positioned(
+              top: 14,
+              left: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F1D).withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _isFaceDetected
+                        ? AppColors.emerald.withValues(alpha: 0.6)
+                        : AppColors.rose.withValues(alpha: 0.7),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: _isFaceDetected ? AppColors.emerald : AppColors.rose,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_isFaceDetected ? AppColors.emerald : AppColors.rose).withValues(alpha: 0.8),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.isHost ? "Instructor AI Face Monitor" : "Student Live Attendance",
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          _isFaceDetected
+                              ? "🟢 Face Detected · ${(_faceConfidence * 100).toInt()}% Attentive"
+                              : "⚠️ No Face in View · Please Face Camera",
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: _isFaceDetected ? AppColors.emerald : AppColors.rose,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Host Overview Badge (top right)
+          if (widget.isHost)
+            Positioned(
+              top: 14,
+              right: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1B4B).withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.violet.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("👥", style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 6),
+                    Text(
+                      "6/7 Students Face-Verified",
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Face Detection Target Box Overlay (when camera is on)
+          if (_isFaceDetectionActive && _showFaceOverlay && !_isCameraOff)
+            Center(
+              child: IgnorePointer(
+                child: Container(
+                  width: 220,
+                  height: 280,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: _isFaceDetected
+                          ? AppColors.violet.withValues(alpha: 0.35)
+                          : AppColors.rose.withValues(alpha: 0.45),
+                      width: 1.5,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: 8,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: (_isFaceDetected ? AppColors.violet : AppColors.rose).withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _isFaceDetected ? "👤 Face Locked" : "🚫 Center Face Here",
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: _isFaceDetected ? AppColors.violet : AppColors.rose,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Bottom Quick Toggle for Face HUD
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: InkWell(
+              onTap: () => setState(() => _showFaceOverlay = !_showFaceOverlay),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _showFaceOverlay ? Icons.face_retouching_natural_rounded : Icons.face_rounded,
+                      size: 13,
+                      color: Colors.white70,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _showFaceOverlay ? "Face Box On" : "Face Box Off",
+                      style: GoogleFonts.inter(fontSize: 10, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -982,20 +1184,161 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
   // ── Tab 2: Participants Roster ────────────────────────────────────────────
   Widget _buildParticipantsTab() {
     final participants = [
-      _Participant(name: "${widget.displayName} (You)", isHost: widget.isHost, isHandRaised: _isHandRaised),
-      _Participant(name: "Professor Alex Turner", isHost: !widget.isHost, isHandRaised: false),
-      _Participant(name: "Amina Kebede", isHost: false, isHandRaised: true),
-      _Participant(name: "David Chen", isHost: false, isHandRaised: false),
-      _Participant(name: "Sara Al-Mansoor", isHost: false, isHandRaised: false),
-      _Participant(name: "Michael Scott", isHost: false, isHandRaised: false),
-      _Participant(name: "Bethany Walker", isHost: false, isHandRaised: true),
+      _Participant(
+        name: "${widget.displayName} (You)",
+        isHost: widget.isHost,
+        isHandRaised: _isHandRaised,
+        faceDetected: _isFaceDetected,
+        attentionScore: _faceConfidence,
+        faceStatus: _isFaceDetected ? "Verified Present" : "Camera Off / Absent",
+      ),
+      _Participant(
+        name: widget.isHost ? "Sara Al-Mansoor (Student)" : "Professor Alex Turner (Instructor)",
+        isHost: !widget.isHost,
+        isHandRaised: false,
+        faceDetected: true,
+        attentionScore: 0.99,
+        faceStatus: "Verified Present",
+      ),
+      _Participant(
+        name: "Amina Kebede",
+        isHost: false,
+        isHandRaised: true,
+        faceDetected: true,
+        attentionScore: 0.95,
+        faceStatus: "Verified Present",
+      ),
+      _Participant(
+        name: "David Chen",
+        isHost: false,
+        isHandRaised: false,
+        faceDetected: true,
+        attentionScore: 0.91,
+        faceStatus: "Verified Present",
+      ),
+      _Participant(
+        name: "Sara Al-Mansoor",
+        isHost: false,
+        isHandRaised: false,
+        faceDetected: true,
+        attentionScore: 0.94,
+        faceStatus: "Verified Present",
+      ),
+      _Participant(
+        name: "Michael Scott",
+        isHost: false,
+        isHandRaised: false,
+        faceDetected: false,
+        attentionScore: 0.12,
+        faceStatus: "⚠️ Away from camera",
+      ),
+      _Participant(
+        name: "Bethany Walker",
+        isHost: false,
+        isHandRaised: true,
+        faceDetected: true,
+        attentionScore: 0.97,
+        faceStatus: "Verified Present",
+      ),
     ];
+
+    final detectedCount = participants.where((p) => p.faceDetected).length;
 
     return Column(
       children: [
+        // AI Face Attendance Summary Card
+        Container(
+          margin: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF131326),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Text("🔍", style: TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                      Text(
+                        "AI Face Attendance",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.emerald.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.emerald.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      "$detectedCount / ${participants.length} Active",
+                      style: GoogleFonts.inter(
+                        color: AppColors.emerald,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: detectedCount / participants.length,
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.emerald),
+                  minHeight: 5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.isHost ? "Instructor View: Live Face Verification" : "Student View: Face Verified",
+                    style: GoogleFonts.inter(fontSize: 10, color: Colors.white54),
+                  ),
+                  if (widget.isHost)
+                    InkWell(
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("📢 Prompted students without active face to check camera."),
+                            backgroundColor: AppColors.violet,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        "Nudge Inactive",
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.violet,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
         if (widget.isHost)
           Padding(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             child: SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -1026,13 +1369,30 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
               return ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  radius: 14,
-                  backgroundColor: p.isHost ? AppColors.rose : AppColors.indigo,
-                  child: Text(
-                    p.name[0],
-                    style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
+                leading: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: p.isHost ? AppColors.rose : AppColors.indigo,
+                      child: Text(
+                        p.name[0],
+                        style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: p.faceDetected ? AppColors.emerald : AppColors.rose,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF0F0F1D), width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 title: Row(
                   children: [
@@ -1058,6 +1418,15 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen>
                       ),
                     ],
                   ],
+                ),
+                subtitle: Text(
+                  p.faceDetected
+                      ? "🟢 ${p.faceStatus} (${(p.attentionScore * 100).toInt()}%)"
+                      : "🔴 ${p.faceStatus}",
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: p.faceDetected ? AppColors.emerald : AppColors.rose,
+                  ),
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1415,8 +1784,18 @@ class _Participant {
   final String name;
   final bool isHost;
   final bool isHandRaised;
+  final bool faceDetected;
+  final double attentionScore;
+  final String faceStatus;
 
-  _Participant({required this.name, required this.isHost, required this.isHandRaised});
+  _Participant({
+    required this.name,
+    required this.isHost,
+    required this.isHandRaised,
+    this.faceDetected = true,
+    this.attentionScore = 0.95,
+    this.faceStatus = "Face Verified",
+  });
 }
 
 class _PollOption {

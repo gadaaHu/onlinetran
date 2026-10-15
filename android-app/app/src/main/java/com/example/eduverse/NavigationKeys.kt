@@ -16,4 +16,10 @@ data object CoursesRoute : NavKey
 data object AuthorizerRoute : NavKey
 
 @Serializable
+data object NotificationsRoute : NavKey
+
+@Serializable
+data object ProgressRoute : NavKey
+
+@Serializable
 data class ClassroomRoute(val roomName: String, val lessonTitle: String) : NavKey

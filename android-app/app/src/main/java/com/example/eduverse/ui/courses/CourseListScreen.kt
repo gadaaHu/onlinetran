@@ -1,5 +1,6 @@
 package com.example.eduverse.ui.courses
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,12 +17,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eduverse.data.Course
 import com.example.eduverse.data.EduVerseApi
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseListScreen(
     onOpenClassroom: (roomName: String, lessonTitle: String) -> Unit,
     onOpenAuthorizer: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    onOpenProgress: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -29,6 +33,13 @@ fun CourseListScreen(
     var isLoading by remember { mutableStateOf(true) }
     val user = EduVerseApi.currentSession
     val isAuthorizer = user?.roles?.any { it.equals("Admin", ignoreCase = true) || it.equals("Instructor", ignoreCase = true) } == true
+    val scope = rememberCoroutineScope()
+
+    var showBroadcastDialog by remember { mutableStateOf(false) }
+    var broadcastTime by remember { mutableStateOf("Today at 4:00 PM") }
+    var broadcastTopic by remember { mutableStateOf("Live Interactive Training & Lab") }
+    var broadcastStatus by remember { mutableStateOf<String?>(null) }
+    var isBroadcasting by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val res = EduVerseApi.getCourses()
@@ -42,40 +53,48 @@ fun CourseListScreen(
                 title = {
                     Column {
                         Text(
-                            text = "EduVerse Training",
+                            text = "EduVerse",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1
                         )
                         Text(
-                            text = "Logged in as ${user?.fullName ?: "Admin"}",
-                            fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.6f)
+                            text = user?.fullName ?: "Admin",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                            maxLines = 1
                         )
                     }
                 },
                 actions = {
-                    if (isAuthorizer) {
-                        FilledTonalButton(
-                            onClick = onOpenAuthorizer,
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF8B5CF6).copy(alpha = 0.25f)),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text("🛡️ Authorize", color = Color(0xFFA78BFA), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
+                    // Theme Mode Toggle (☀️ Light / 🌙 Dark)
+                    IconButton(onClick = { com.example.eduverse.theme.ThemeState.toggle() }) {
+                        Text(if (com.example.eduverse.theme.ThemeState.isDark) "🌙" else "☀️", fontSize = 18.sp)
                     }
-                    TextButton(onClick = onLogout) {
-                        Text("Logout", color = Color(0xFFF87171), fontSize = 13.sp)
+                    // Progress dashboard icon
+                    IconButton(onClick = onOpenProgress) {
+                        Text("📊", fontSize = 18.sp)
+                    }
+                    // Notifications bell icon
+                    IconButton(onClick = onOpenNotifications) {
+                        Text("🔔", fontSize = 18.sp)
+                    }
+                    if (isAuthorizer) {
+                        IconButton(onClick = onOpenAuthorizer) {
+                            Text("🛡️", fontSize = 18.sp)
+                        }
+                    }
+                    IconButton(onClick = onLogout) {
+                        Text("🚪", fontSize = 18.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0F0F1D)
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
-        containerColor = Color(0xFF0A0A14),
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier
     ) { padding ->
         if (isLoading) {
@@ -100,8 +119,9 @@ fun CourseListScreen(
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF131326)
+                            containerColor = MaterialTheme.colorScheme.surface
                         ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -109,7 +129,7 @@ fun CourseListScreen(
                                 .fillMaxWidth()
                                 .background(
                                     brush = Brush.horizontalGradient(
-                                        listOf(Color(0xFF8B5CF6).copy(alpha = 0.2f), Color.Transparent)
+                                        listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), Color.Transparent)
                                     )
                                 )
                                 .padding(16.dp),
@@ -120,12 +140,12 @@ fun CourseListScreen(
                                     text = "Ready to learn?",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "Join live sessions or continue where you left off.",
                                     fontSize = 13.sp,
-                                    color = Color.White.copy(alpha = 0.6f)
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                                 )
                             }
                         }
@@ -136,8 +156,8 @@ fun CourseListScreen(
                     item {
                         Card(
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1435)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f)),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -154,25 +174,73 @@ fun CourseListScreen(
                                         Text(
                                             text = "Student Authorization Portal",
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             fontSize = 14.sp
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "Review & confirm new student registrations.",
-                                        color = Color.White.copy(alpha = 0.65f),
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                                         fontSize = 12.sp
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Button(
                                     onClick = onOpenAuthorizer,
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                     shape = RoundedCornerShape(10.dp),
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                                 ) {
                                     Text("Open", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("⏰", fontSize = 18.sp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Broadcast Class Schedule",
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Send live class time simultaneously to all students.",
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Button(
+                                    onClick = {
+                                        broadcastStatus = null
+                                        showBroadcastDialog = true
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Text("Schedule", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -190,6 +258,110 @@ fun CourseListScreen(
                 }
             }
         }
+
+        if (showBroadcastDialog) {
+            AlertDialog(
+                onDismissRequest = { if (!isBroadcasting) showBroadcastDialog = false },
+                title = {
+                    Text(
+                        text = "⏰ Broadcast Class Time",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Every enrolled student will receive a notification with this class time at the exact same moment.",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            fontSize = 12.sp
+                        )
+                        OutlinedTextField(
+                            value = broadcastTime,
+                            onValueChange = { broadcastTime = it },
+                            label = { Text("Class Time", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Today 4:00 PM", "Today 7:00 PM", "Tomorrow 10:00 AM").forEach { preset ->
+                                Surface(
+                                    color = if (broadcastTime == preset) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.clickable { broadcastTime = preset }
+                                ) {
+                                    Text(
+                                        preset,
+                                        color = if (broadcastTime == preset) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                        OutlinedTextField(
+                            value = broadcastTopic,
+                            onValueChange = { broadcastTopic = it },
+                            label = { Text("Lesson / Topic", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (broadcastStatus != null) {
+                            Text(
+                                text = broadcastStatus ?: "",
+                                color = if (broadcastStatus?.startsWith("✅") == true) Color(0xFF10B981) else Color(0xFFEF4444),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            isBroadcasting = true
+                            broadcastStatus = "Broadcasting to all students..."
+                            scope.launch {
+                                val res = EduVerseApi.broadcastClassTime(
+                                    courseId = null,
+                                    classTime = broadcastTime,
+                                    topic = broadcastTopic
+                                )
+                                isBroadcasting = false
+                                if (res.isSuccess) {
+                                    broadcastStatus = "✅ ${res.getOrNull()}"
+                                } else {
+                                    broadcastStatus = "❌ ${res.exceptionOrNull()?.message ?: "Failed"}"
+                                }
+                            }
+                        },
+                        enabled = !isBroadcasting && broadcastTime.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text(if (isBroadcasting) "Sending..." else "Send to All Students")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBroadcastDialog = false }) {
+                        Text("Close", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        }
     }
 }
 
@@ -200,7 +372,8 @@ fun CourseCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF141426)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -213,16 +386,16 @@ fun CourseCard(
                     text = course.title,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 Surface(
-                    color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = "ACTIVE",
-                        color = Color(0xFF8B5CF6),
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -235,7 +408,7 @@ fun CourseCard(
             Text(
                 text = course.description,
                 fontSize = 13.sp,
-                color = Color.White.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 maxLines = 2
             )
 
@@ -244,7 +417,7 @@ fun CourseCard(
             Text(
                 text = "Instructor: ${course.instructorName}",
                 fontSize = 12.sp,
-                color = Color.White.copy(alpha = 0.4f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
 
             Spacer(modifier = Modifier.height(14.dp))

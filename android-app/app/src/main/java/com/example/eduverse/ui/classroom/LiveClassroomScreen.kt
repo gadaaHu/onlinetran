@@ -30,20 +30,42 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.animation.core.*
 import com.example.eduverse.data.EduVerseApi
+import com.example.eduverse.data.LiveStudentPresence
 import kotlinx.coroutines.launch
 
 enum class ClassroomTab {
     VIDEO, WHITEBOARD, CHAT, CONTROLS
 }
 
-data class LiveStudentState(
-    val id: String,
-    val name: String,
-    val isMicMuted: Boolean = false,
-    val isVideoOff: Boolean = false,
-    val isHandRaised: Boolean = false
-)
+typealias LiveStudentState = LiveStudentPresence
+
+fun getStudentAvatarGradient(name: String): Pair<Color, Color> {
+    val hash = Math.abs(name.hashCode())
+    val palettes = listOf(
+        Color(0xFF6366F1) to Color(0xFF8B5CF6), // Indigo / Violet
+        Color(0xFFEC4899) to Color(0xFFF43F5E), // Pink / Rose
+        Color(0xFF10B981) to Color(0xFF06B6D4), // Emerald / Cyan
+        Color(0xFFF59E0B) to Color(0xFFD97706), // Amber / Orange
+        Color(0xFF3B82F6) to Color(0xFF1D4ED8), // Blue / Cobalt
+        Color(0xFF8B5CF6) to Color(0xFFC084FC)  // Purple / Lavender
+    )
+    return palettes[hash % palettes.size]
+}
+
+fun getStudentInitials(name: String): String {
+    val parts = name.trim().split(" ").filter { it.isNotBlank() }
+    return when {
+        parts.size >= 2 -> "${parts[0].first()}${parts[1].first()}".uppercase()
+        parts.isNotEmpty() && parts[0].length >= 2 -> parts[0].take(2).uppercase()
+        parts.isNotEmpty() -> parts[0].take(1).uppercase()
+        else -> "ST"
+    }
+}
 
 data class DrawPath(
     val points: List<Offset>,
@@ -76,14 +98,54 @@ fun AndroidLiveClassroomScreen(
     val scope = rememberCoroutineScope()
     var isRoomLocked by remember { mutableStateOf(false) }
     var controlFeedback by remember { mutableStateOf<String?>(null) }
+    var faceCount by remember { mutableIntStateOf(0) }
+    var cameraPermissionGranted by remember { mutableStateOf(false) }
+    var isCameraFullscreen by remember { mutableStateOf(false) }
+
+    // Request camera permission
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted -> cameraPermissionGranted = granted }
 
     val liveStudents = remember {
-        mutableStateListOf(
-            LiveStudentState("s-101", "Abebe Kebede", isMicMuted = false, isVideoOff = false, isHandRaised = true),
-            LiveStudentState("s-102", "Sara Tadesse", isMicMuted = false, isVideoOff = false, isHandRaised = false),
-            LiveStudentState("s-103", "Dawit Haile", isMicMuted = true, isVideoOff = false, isHandRaised = false),
-            LiveStudentState("s-104", "Hanan Mohammed", isMicMuted = false, isVideoOff = true, isHandRaised = true)
-        )
+        mutableStateListOf<LiveStudentPresence>().apply {
+            addAll(EduVerseApi.sampleLiveStudents)
+        }
+    }
+    var isCheckingPresence by remember { mutableStateOf(false) }
+    var selectedStudentForProfile by remember { mutableStateOf<LiveStudentPresence?>(null) }
+    var presenceFilter by remember { mutableStateOf("ALL") } // "ALL", "ONLINE", "OFFLINE", "HANDS"
+
+    fun refreshLivePresence() {
+        scope.launch {
+            isCheckingPresence = true
+            val res = EduVerseApi.getLivePresence(roomName)
+            isCheckingPresence = false
+            res.onSuccess { list ->
+                liveStudents.clear()
+                liveStudents.addAll(list)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(android.Manifest.permission.CAMERA)
+        refreshLivePresence()
+    }
+
+    // Periodic heartbeat to report face presence and poll room status
+    LaunchedEffect(faceCount, isHandRaised) {
+        while (true) {
+            kotlinx.coroutines.delay(10_000)
+            EduVerseApi.sendLiveHeartbeat(
+                roomName = roomName,
+                isFaceDetected = faceCount > 0,
+                faceCount = faceCount,
+                isMicMuted = false,
+                isVideoOff = false,
+                isHandRaised = isHandRaised
+            )
+        }
     }
 
     // Whiteboard state
@@ -163,16 +225,13 @@ fun AndroidLiveClassroomScreen(
                 .padding(padding)
         ) {
             // Modern Segmented Classroom Mode Switcher
-            val tabs = remember(isInstructor) {
-                val list = mutableListOf(
+            val tabs = remember {
+                listOf(
                     ClassroomTab.VIDEO to "📹 Video",
                     ClassroomTab.WHITEBOARD to "🎨 Board",
-                    ClassroomTab.CHAT to "💬 Chat"
+                    ClassroomTab.CHAT to "💬 Chat",
+                    ClassroomTab.CONTROLS to "👥 Students"
                 )
-                if (isInstructor) {
-                    list.add(ClassroomTab.CONTROLS to "🎓 Controls")
-                }
-                list
             }
 
             Row(
@@ -212,120 +271,274 @@ fun AndroidLiveClassroomScreen(
             ) {
                 when (selectedTab) {
                     ClassroomTab.VIDEO -> {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            AndroidView(
-                                factory = { ctx ->
-                                    WebView(ctx).apply {
-                                        // Desktop user-agent prevents Jitsi from displaying mobile app download splash
-                                        settings.userAgentString =
-                                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                                        settings.javaScriptEnabled = true
-                                        settings.domStorageEnabled = true
-                                        settings.databaseEnabled = true
-                                        settings.mediaPlaybackRequiresUserGesture = false
-                                        settings.allowFileAccess = true
-                                        settings.cacheMode = WebSettings.LOAD_DEFAULT
-
-                                        webChromeClient = object : WebChromeClient() {
-                                            override fun onPermissionRequest(request: PermissionRequest) {
-                                                request.grant(request.resources)
-                                            }
-                                        }
-
-                                        webViewClient = object : WebViewClient() {
-                                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                                isWebLoading = true
-                                                webLoadError = null
-                                            }
-
-                                            override fun onPageFinished(view: WebView?, url: String?) {
-                                                isWebLoading = false
-                                            }
-
-                                            override fun onReceivedError(
-                                                view: WebView?,
-                                                request: WebResourceRequest?,
-                                                error: WebResourceError?
+                        if (isCameraFullscreen) {
+                            // Fullscreen Camera View - gives complete prominence to face detection & front camera
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                if (cameraPermissionGranted) {
+                                    FaceDetectionCameraView(
+                                        isInstructor = isInstructor,
+                                        onFaceCountChanged = { faceCount = it },
+                                        isFullscreen = true,
+                                        onToggleFullscreen = { isCameraFullscreen = false },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+                        } else {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // ── Interactive Lecture Stage (replaces the blank black box)
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                    modifier = Modifier
+                                        .weight(0.50f)
+                                        .fillMaxWidth()
+                                        .padding(10.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(14.dp),
+                                        verticalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                if (request?.isForMainFrame == true) {
-                                                    isWebLoading = false
-                                                    webLoadError = "Unable to connect to live stream. If offline, use Whiteboard or Chat."
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = Color(0xFF10B981).copy(alpha = 0.2f),
+                                                        modifier = Modifier.size(24.dp)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Text("📡", fontSize = 12.sp)
+                                                        }
+                                                    }
+                                                    Text(
+                                                        text = "Live Lecture Stage",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 15.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+
+                                                Surface(
+                                                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f))
+                                                ) {
+                                                    Text(
+                                                        text = "● IN PROGRESS",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF10B981),
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            Text(
+                                                text = lessonTitle,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "Room: $roomName • Instructor Active",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                                            )
+
+                                            // Lecture notes / agenda card
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                    Text("📋 Module Highlights:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                                    Text("• High-Availability Architecture & Edge Streaming", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                                    Text("• WebRTC Video Delivery & Face Attendance", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                                    Text("• Live Interactive Whiteboard & Reaction Sync", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                                }
+                                            }
+
+                                            // Live Student Presence Strip
+                                            val onlineCount = liveStudents.count { it.isOnline }
+                                            val offlineCount = liveStudents.count { !it.isOnline }
+                                            Surface(
+                                                onClick = { selectedTab = ClassroomTab.CONTROLS },
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                                shape = RoundedCornerShape(10.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
+                                                            liveStudents.filter { it.isOnline }.take(3).forEach { st ->
+                                                                val (g1, g2) = getStudentAvatarGradient(st.name)
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(20.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(Brush.linearGradient(listOf(g1, g2)))
+                                                                        .border(1.dp, Color(0xFF0F0F1D), CircleShape),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    Text(getStudentInitials(st.name).take(1), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                                }
+                                                            }
+                                                        }
+                                                        Text(
+                                                            text = "👥 $onlineCount Online • $offlineCount Offline",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = "Live Check →",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
                                                 }
                                             }
                                         }
-                                        loadUrl(jitsiUrl)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
 
-                            if (isWebLoading) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0xFF0A0A14)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        CircularProgressIndicator(color = Color(0xFF8B5CF6))
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Text(
-                                            text = "Connecting to Live Stream...",
-                                            color = Color.White,
-                                            fontSize = 14.sp
-                                        )
-                                        Text(
-                                            text = "Room: $roomName",
-                                            color = Color.White.copy(alpha = 0.5f),
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                }
-                            }
-
-                            if (webLoadError != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0xFF0F0F1D))
-                                        .padding(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("📡", fontSize = 48.sp)
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Text(
-                                            text = "Live Stream Notice",
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            fontSize = 16.sp
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = webLoadError ?: "",
-                                            color = Color.White.copy(alpha = 0.7f),
-                                            fontSize = 13.sp,
-                                            lineHeight = 18.sp
-                                        )
-                                        Spacer(modifier = Modifier.height(20.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        // Action buttons
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
                                             Button(
-                                                onClick = { selectedTab = ClassroomTab.WHITEBOARD },
-                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                                                onClick = { isCameraFullscreen = true },
+                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                                             ) {
-                                                Text("🎨 Open Whiteboard")
+                                                Text("⛶ Full Camera", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                             }
                                             OutlinedButton(
-                                                onClick = { selectedTab = ClassroomTab.CHAT }
+                                                onClick = { selectedTab = ClassroomTab.WHITEBOARD },
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                                             ) {
-                                                Text("💬 Open Chat", color = Color.White)
+                                                Text("🎨 Whiteboard", fontSize = 11.sp)
+                                            }
+                                            OutlinedButton(
+                                                onClick = { selectedTab = ClassroomTab.CHAT },
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                                            ) {
+                                                Text("💬 Chat", fontSize = 11.sp)
                                             }
                                         }
                                     }
                                 }
-                            }
-                        }
-                    }
+
+                                // ── Face Detection Camera Panel (bottom 50%)
+                                Column(
+                                    modifier = Modifier
+                                        .weight(0.50f)
+                                        .fillMaxWidth()
+                                        .background(Color(0xFF080814))
+                                ) {
+                                    // Panel header
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFF0F0F1D))
+                                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text("🔍", fontSize = 14.sp)
+                                            Text(
+                                                text = "Face Attendance & Video",
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Row(
+                                            modifier = Modifier
+                                                .background(
+                                                    color = if (faceCount > 0) Color(0x3310B981) else Color(0x33EF4444),
+                                                    shape = RoundedCornerShape(12.dp)
+                                                )
+                                                .padding(horizontal = 10.dp, vertical = 3.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            androidx.compose.foundation.Canvas(Modifier.size(7.dp)) {
+                                                drawCircle(if (faceCount > 0) androidx.compose.ui.graphics.Color(0xFF10B981) else androidx.compose.ui.graphics.Color(0xFFEF4444))
+                                            }
+                                            Text(
+                                                text = if (faceCount > 0) "$faceCount face verified" else "No face",
+                                                color = if (faceCount > 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+
+                                    // Camera + ML Kit face detection overlay
+                                    if (cameraPermissionGranted) {
+                                        FaceDetectionCameraView(
+                                            isInstructor = isInstructor,
+                                            onFaceCountChanged = { faceCount = it },
+                                            isFullscreen = false,
+                                            onToggleFullscreen = { isCameraFullscreen = true },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color(0xFF0F0F1D)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Text("📷", fontSize = 36.sp)
+                                                Text(
+                                                    text = "Camera permission required\nfor face detection",
+                                                    color = Color.White.copy(alpha = 0.6f),
+                                                    fontSize = 13.sp,
+                                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                )
+                                                Button(
+                                                    onClick = { permissionLauncher.launch(android.Manifest.permission.CAMERA) },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                                                ) {
+                                                    Text("Grant Camera Permission", fontSize = 12.sp)
+                                                }
+                                            }
+                                        }
+                                    } // end else (no camera permission)
+                                } // end face detection panel Column
+                            } // end non-fullscreen Column
+                        } // end VIDEO tab else block
+                    } // end ClassroomTab.VIDEO
 
                     ClassroomTab.WHITEBOARD -> {
                         Column(modifier = Modifier.fillMaxSize()) {
@@ -548,96 +761,201 @@ fun AndroidLiveClassroomScreen(
                     }
 
                     ClassroomTab.CONTROLS -> {
+                        val onlineCount = liveStudents.count { it.isOnline }
+                        val offlineCount = liveStudents.count { !it.isOnline }
+                        val verifiedCount = liveStudents.count { it.isOnline && it.isFaceVerified }
+                        val handsCount = liveStudents.count { it.isHandRaised }
+
+                        val filteredStudents = remember(presenceFilter, liveStudents.toList()) {
+                            when (presenceFilter) {
+                                "ONLINE" -> liveStudents.filter { it.isOnline }
+                                "OFFLINE" -> liveStudents.filter { !it.isOnline }
+                                "HANDS" -> liveStudents.filter { it.isHandRaised }
+                                else -> liveStudents
+                            }
+                        }
+
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color(0xFF0F0F1D))
-                                .padding(16.dp)
+                                .background(Color(0xFF0A0A14))
+                                .padding(14.dp)
                         ) {
-                            // Instructor Header
+                            // Header: Room & Live Presence Controls
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("👥", fontSize = 18.sp)
+                                        Text(
+                                            text = "Student Live Presence",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 17.sp,
+                                            color = Color.White
+                                        )
+                                    }
                                     Text(
-                                        text = "👨‍🏫 Live Student Controls",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = "${liveStudents.size} students connected in live session",
-                                        fontSize = 12.sp,
+                                        text = "$onlineCount Online • $offlineCount Offline • Face Verification Active",
+                                        fontSize = 11.sp,
                                         color = Color.White.copy(alpha = 0.6f)
                                     )
                                 }
 
-                                FilledTonalButton(
-                                    onClick = {
-                                        isRoomLocked = !isRoomLocked
-                                        controlFeedback = if (isRoomLocked) "🔒 Room locked for new students." else "🔓 Room unlocked."
-                                    },
-                                    colors = ButtonDefaults.filledTonalButtonColors(
-                                        containerColor = if (isRoomLocked) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.1f)
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = if (isRoomLocked) "🔒 Locked" else "🔓 Open",
-                                        fontSize = 11.sp,
-                                        color = if (isRoomLocked) Color(0xFFF87171) else Color.White
-                                    )
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    // Live Check button
+                                    FilledTonalButton(
+                                        onClick = { refreshLivePresence() },
+                                        enabled = !isCheckingPresence,
+                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = Color(0xFF8B5CF6).copy(alpha = 0.25f)
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isCheckingPresence) "🔄 Checking..." else "⚡ Live Check",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFA78BFA)
+                                        )
+                                    }
+
+                                    if (isInstructor) {
+                                        FilledTonalButton(
+                                            onClick = {
+                                                isRoomLocked = !isRoomLocked
+                                                controlFeedback = if (isRoomLocked) "🔒 Room locked for new students." else "🔓 Room unlocked."
+                                            },
+                                            colors = ButtonDefaults.filledTonalButtonColors(
+                                                containerColor = if (isRoomLocked) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.1f)
+                                            ),
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isRoomLocked) "🔒 Locked" else "🔓 Open",
+                                                fontSize = 11.sp,
+                                                color = if (isRoomLocked) Color(0xFFF87171) else Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Global Actions
+                            // ── Live Presence KPI Strip
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Button(
-                                    onClick = {
-                                        liveStudents.indices.forEach { i ->
-                                            liveStudents[i] = liveStudents[i].copy(isMicMuted = true)
-                                        }
-                                        controlFeedback = "🔇 All student microphones muted by instructor."
-                                        scope.launch {
-                                            EduVerseApi.sendLiveControl("MUTE_ALL", "ALL", roomName)
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.25f)),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                // Online KPI
+                                Surface(
+                                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("🔇 Mute All", color = Color(0xFFF87171), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                            Text("$onlineCount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
+                                        }
+                                        Text("Live Online", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                    }
                                 }
 
-                                Button(
-                                    onClick = {
-                                        liveStudents.indices.forEach { i ->
-                                            liveStudents[i] = liveStudents[i].copy(isHandRaised = false)
-                                        }
-                                        controlFeedback = "👇 All raised hands cleared."
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B).copy(alpha = 0.25f)),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                // Offline KPI
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.05f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("👇 Clear Hands", color = Color(0xFFFBBF24), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF94A3B8)))
+                                            Text("$offlineCount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFCBD5E1))
+                                        }
+                                        Text("Offline", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                    }
+                                }
+
+                                // Face Verified KPI
+                                Surface(
+                                    color = Color(0xFF6366F1).copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.35f)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("👤", fontSize = 11.sp)
+                                            Text("$verifiedCount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA5B4FC))
+                                        }
+                                        Text("Face Verified", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                    }
+                                }
+
+                                // Hand Raised KPI
+                                Surface(
+                                    color = Color(0xFFF59E0B).copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.35f)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("✋", fontSize = 11.sp)
+                                            Text("$handsCount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                                        }
+                                        Text("Hands", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                    }
                                 }
                             }
 
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // ── Filter Pills Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val filters = listOf(
+                                    "ALL" to "All (${liveStudents.size})",
+                                    "ONLINE" to "🟢 Online ($onlineCount)",
+                                    "OFFLINE" to "⚪ Offline ($offlineCount)",
+                                    "HANDS" to "✋ Hands ($handsCount)"
+                                )
+                                filters.forEach { (key, label) ->
+                                    val isSelected = presenceFilter == key
+                                    Surface(
+                                        onClick = { presenceFilter = key },
+                                        color = if (isSelected) Color(0xFF8B5CF6) else Color.White.copy(alpha = 0.08f),
+                                        shape = RoundedCornerShape(20.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            if (isSelected) Color(0xFF8B5CF6) else Color.White.copy(alpha = 0.15f)
+                                        )
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Feedback banner
                             if (controlFeedback != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
                                 Surface(
                                     color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
                                     shape = RoundedCornerShape(8.dp),
@@ -650,19 +968,27 @@ fun AndroidLiveClassroomScreen(
                                         modifier = Modifier.padding(8.dp)
                                     )
                                 }
+                                Spacer(modifier = Modifier.height(8.dp))
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Student Roster with live controls
+                            // ── Student List (Recognizable profiles)
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                items(liveStudents, key = { it.id }) { student ->
+                                items(filteredStudents, key = { it.id }) { student ->
+                                    val (gradStart, gradEnd) = getStudentAvatarGradient(student.name)
+                                    val initials = getStudentInitials(student.name)
+
                                     Card(
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF151528)),
+                                        onClick = { selectedStudentForProfile = student },
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF141426)),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            if (student.isOnline) Color(0xFF10B981).copy(alpha = 0.35f)
+                                            else Color.White.copy(alpha = 0.08f)
+                                        ),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
@@ -671,117 +997,341 @@ fun AndroidLiveClassroomScreen(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Surface(
-                                                        shape = CircleShape,
-                                                        color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
-                                                        modifier = Modifier.size(32.dp)
+                                                // Recognizable Student Avatar + Details
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    // Distinct Colorful Avatar with Live Ring
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(46.dp)
+                                                            .clip(CircleShape)
+                                                            .background(Brush.linearGradient(listOf(gradStart, gradEnd)))
+                                                            .border(
+                                                                width = 2.dp,
+                                                                color = if (student.isOnline) Color(0xFF10B981) else Color(0xFF64748B),
+                                                                shape = CircleShape
+                                                            ),
+                                                        contentAlignment = Alignment.Center
                                                     ) {
-                                                        Box(contentAlignment = Alignment.Center) {
-                                                            Text(student.name.take(1), fontWeight = FontWeight.Bold, color = Color(0xFFA78BFA))
-                                                        }
-                                                    }
-                                                    Spacer(modifier = Modifier.width(10.dp))
-                                                    Column {
-                                                        Text(student.name, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
                                                         Text(
-                                                            text = if (student.isHandRaised) "✋ Raised hand" else if (student.isMicMuted) "Mic muted" else "Active speaker",
-                                                            fontSize = 11.sp,
-                                                            color = if (student.isHandRaised) Color(0xFFFBBF24) else Color.White.copy(alpha = 0.5f)
+                                                            text = initials,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = Color.White,
+                                                            fontSize = 16.sp
                                                         )
+                                                        // Online Beacon Dot
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(11.dp)
+                                                                .align(Alignment.BottomEnd)
+                                                                .clip(CircleShape)
+                                                                .background(if (student.isOnline) Color(0xFF10B981) else Color(0xFF94A3B8))
+                                                                .border(1.5.dp, Color(0xFF141426), CircleShape)
+                                                        )
+                                                    }
+
+                                                    // Student Identity Information
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                            Text(
+                                                                text = student.name,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = Color.White,
+                                                                fontSize = 14.sp
+                                                            )
+                                                            if (student.isHandRaised) {
+                                                                Text("✋", fontSize = 12.sp)
+                                                            }
+                                                        }
+
+                                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                            Surface(
+                                                                color = Color(0xFF6366F1).copy(alpha = 0.2f),
+                                                                shape = RoundedCornerShape(4.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = student.studentId,
+                                                                    color = Color(0xFFA5B4FC),
+                                                                    fontSize = 9.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                                )
+                                                            }
+                                                            Text(
+                                                                text = student.email,
+                                                                fontSize = 11.sp,
+                                                                color = Color.White.copy(alpha = 0.5f),
+                                                                maxLines = 1
+                                                            )
+                                                        }
                                                     }
                                                 }
 
-                                                if (student.isHandRaised) {
-                                                    Surface(
-                                                        color = Color(0xFFF59E0B).copy(alpha = 0.2f),
-                                                        shape = RoundedCornerShape(6.dp)
-                                                    ) {
-                                                        Text("✋ ASKING", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24), modifier = Modifier.padding(4.dp))
-                                                    }
+                                                // "View Profile" Icon Button
+                                                IconButton(
+                                                    onClick = { selectedStudentForProfile = student },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Text("ℹ️", fontSize = 16.sp)
                                                 }
                                             }
 
                                             Spacer(modifier = Modifier.height(10.dp))
 
-                                            // Action Buttons for this student
+                                            // ── Real-Time Status & Hardware Pills
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                // Mute / Unmute
-                                                FilledTonalButton(
-                                                    onClick = {
-                                                        val idx = liveStudents.indexOfFirst { it.id == student.id }
-                                                        if (idx != -1) {
-                                                            val updated = student.copy(isMicMuted = !student.isMicMuted)
-                                                            liveStudents[idx] = updated
-                                                            controlFeedback = "${if (updated.isMicMuted) "🔇 Muted" else "🔊 Unmuted"} ${student.name}"
-                                                            scope.launch {
-                                                                EduVerseApi.sendLiveControl(if (updated.isMicMuted) "MUTE" else "UNMUTE", student.id, roomName)
-                                                            }
-                                                        }
+                                                // Live Online / Offline identification badge
+                                                Surface(
+                                                    color = when {
+                                                        student.isOnline && student.isFaceVerified -> Color(0xFF10B981).copy(alpha = 0.2f)
+                                                        student.isOnline -> Color(0xFFF59E0B).copy(alpha = 0.2f)
+                                                        else -> Color.White.copy(alpha = 0.08f)
                                                     },
-                                                    colors = ButtonDefaults.filledTonalButtonColors(
-                                                        containerColor = if (student.isMicMuted) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f)
-                                                    ),
                                                     shape = RoundedCornerShape(8.dp),
-                                                    modifier = Modifier.weight(1f),
-                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
-                                                ) {
-                                                    Text(
-                                                        text = if (student.isMicMuted) "Unmute" else "Mute",
-                                                        fontSize = 11.sp,
-                                                        color = if (student.isMicMuted) Color(0xFFF87171) else Color.White
+                                                    border = androidx.compose.foundation.BorderStroke(
+                                                        1.dp,
+                                                        when {
+                                                            student.isOnline && student.isFaceVerified -> Color(0xFF10B981).copy(alpha = 0.5f)
+                                                            student.isOnline -> Color(0xFFF59E0B).copy(alpha = 0.5f)
+                                                            else -> Color.White.copy(alpha = 0.15f)
+                                                        }
                                                     )
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = when {
+                                                                student.isOnline && student.isFaceVerified -> "🟢 Live • Face Verified"
+                                                                student.isOnline -> "🟡 Away (No Face)"
+                                                                else -> "⚪ Offline"
+                                                            },
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = when {
+                                                                student.isOnline && student.isFaceVerified -> Color(0xFF34D399)
+                                                                student.isOnline -> Color(0xFFFBBF24)
+                                                                else -> Color(0xFF94A3B8)
+                                                            }
+                                                        )
+                                                    }
                                                 }
 
-                                                // Video Off / On
-                                                FilledTonalButton(
-                                                    onClick = {
-                                                        val idx = liveStudents.indexOfFirst { it.id == student.id }
-                                                        if (idx != -1) {
-                                                            val updated = student.copy(isVideoOff = !student.isVideoOff)
-                                                            liveStudents[idx] = updated
-                                                            controlFeedback = "${if (updated.isVideoOff) "📷 Video Stopped" else "📹 Video Allowed"} for ${student.name}"
-                                                            scope.launch {
-                                                                EduVerseApi.sendLiveControl(if (updated.isVideoOff) "VIDEO_OFF" else "VIDEO_ON", student.id, roomName)
-                                                            }
-                                                        }
-                                                    },
-                                                    colors = ButtonDefaults.filledTonalButtonColors(
-                                                        containerColor = if (student.isVideoOff) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f)
-                                                    ),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    modifier = Modifier.weight(1f),
-                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
-                                                ) {
-                                                    Text(
-                                                        text = if (student.isVideoOff) "Enable Cam" else "Stop Cam",
-                                                        fontSize = 11.sp,
-                                                        color = if (student.isVideoOff) Color(0xFFF87171) else Color.White
-                                                    )
-                                                }
+                                                // Attendance Rate
+                                                Text(
+                                                    text = "📊 ${student.attendanceRate}% Attendance",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color.White.copy(alpha = 0.7f)
+                                                )
 
-                                                // Dismiss
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        liveStudents.remove(student)
-                                                        controlFeedback = "🚫 Dismissed ${student.name} from live room."
-                                                        scope.launch {
-                                                            EduVerseApi.sendLiveControl("DISMISS", student.id, roomName)
-                                                        }
-                                                    },
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                                // Feed indicators
+                                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Text(if (student.isMicMuted) "🔇" else "🎤", fontSize = 12.sp)
+                                                    Text(if (student.isVideoOff) "📷❌" else "📹", fontSize = 12.sp)
+                                                }
+                                            }
+
+                                            // Instructor Moderation Actions
+                                            if (isInstructor) {
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                 ) {
-                                                    Text("Dismiss", fontSize = 10.sp, color = Color(0xFFEF4444))
+                                                    FilledTonalButton(
+                                                        onClick = {
+                                                            val idx = liveStudents.indexOfFirst { it.id == student.id }
+                                                            if (idx != -1) {
+                                                                val updated = student.copy(isMicMuted = !student.isMicMuted)
+                                                                liveStudents[idx] = updated
+                                                                controlFeedback = "${if (updated.isMicMuted) "🔇 Muted" else "🔊 Unmuted"} ${student.name}"
+                                                                scope.launch {
+                                                                    EduVerseApi.sendLiveControl(if (updated.isMicMuted) "MUTE" else "UNMUTE", student.id, roomName)
+                                                                }
+                                                            }
+                                                        },
+                                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                                            containerColor = if (student.isMicMuted) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f)
+                                                        ),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        modifier = Modifier.weight(1f),
+                                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = if (student.isMicMuted) "Unmute" else "Mute",
+                                                            fontSize = 11.sp,
+                                                            color = if (student.isMicMuted) Color(0xFFF87171) else Color.White
+                                                        )
+                                                    }
+
+                                                    FilledTonalButton(
+                                                        onClick = {
+                                                            val idx = liveStudents.indexOfFirst { it.id == student.id }
+                                                            if (idx != -1) {
+                                                                val updated = student.copy(isVideoOff = !student.isVideoOff)
+                                                                liveStudents[idx] = updated
+                                                                controlFeedback = "${if (updated.isVideoOff) "📷 Video Stopped" else "📹 Video Allowed"} for ${student.name}"
+                                                                scope.launch {
+                                                                    EduVerseApi.sendLiveControl(if (updated.isVideoOff) "VIDEO_OFF" else "VIDEO_ON", student.id, roomName)
+                                                                }
+                                                            }
+                                                        },
+                                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                                            containerColor = if (student.isVideoOff) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f)
+                                                        ),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        modifier = Modifier.weight(1f),
+                                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = if (student.isVideoOff) "Enable Cam" else "Stop Cam",
+                                                            fontSize = 11.sp,
+                                                            color = if (student.isVideoOff) Color(0xFFF87171) else Color.White
+                                                        )
+                                                    }
+
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            liveStudents.remove(student)
+                                                            controlFeedback = "🚫 Dismissed ${student.name} from live room."
+                                                            scope.launch {
+                                                                EduVerseApi.sendLiveControl("DISMISS", student.id, roomName)
+                                                            }
+                                                        },
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text("Dismiss", fontSize = 10.sp, color = Color(0xFFEF4444))
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
+
+                        // ── Recognizable Student Profile & Identity Modal Dialog
+                        if (selectedStudentForProfile != null) {
+                            val st = selectedStudentForProfile!!
+                            val (g1, g2) = getStudentAvatarGradient(st.name)
+                            val initials = getStudentInitials(st.name)
+
+                            AlertDialog(
+                                onDismissRequest = { selectedStudentForProfile = null },
+                                confirmButton = {
+                                    TextButton(onClick = { selectedStudentForProfile = null }) {
+                                        Text("Close", color = Color(0xFF8B5CF6), fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                title = {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("🎓", fontSize = 20.sp)
+                                        Text("Student Identity & Live Check", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                    }
+                                },
+                                text = {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        // Large Recognizable Profile Avatar
+                                        Box(
+                                            modifier = Modifier
+                                                .size(68.dp)
+                                                .clip(CircleShape)
+                                                .background(Brush.linearGradient(listOf(g1, g2)))
+                                                .border(3.dp, if (st.isOnline) Color(0xFF10B981) else Color(0xFF64748B), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = initials,
+                                                fontSize = 24.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color.White
+                                            )
+                                        }
+
+                                        Text(st.name, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color.White)
+                                        Surface(
+                                            color = Color(0xFF6366F1).copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "ID: ${st.studentId} • ${st.email}",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFFA5B4FC),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+
+                                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                                        // Detailed verification points
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Live Presence Status:", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                                                Text(
+                                                    text = if (st.isOnline) "🟢 Active in Classroom" else "⚪ Offline",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (st.isOnline) Color(0xFF34D399) else Color(0xFF94A3B8)
+                                                )
+                                            }
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Biometric Face Check:", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                                                Text(
+                                                    text = if (st.isFaceVerified) "✓ Face Detected & Verified" else "⚠ No Face Detected",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (st.isFaceVerified) Color(0xFF34D399) else Color(0xFFFBBF24)
+                                                )
+                                            }
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Microphone Feed:", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                                                Text(
+                                                    text = if (st.isMicMuted) "🔇 Muted" else "🎤 Active Speaker",
+                                                    fontSize = 12.sp,
+                                                    color = Color.White
+                                                )
+                                            }
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Video Stream:", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                                                Text(
+                                                    text = if (st.isVideoOff) "Camera Stopped" else "📹 720p HD Feed",
+                                                    fontSize = 12.sp,
+                                                    color = Color.White
+                                                )
+                                            }
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Attendance Record:", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                                                Text("${st.attendanceRate}% Historical Rate", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA78BFA))
+                                            }
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Hardware / Device:", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                                                Text(st.deviceInfo, fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f))
+                                            }
+                                        }
+                                    }
+                                },
+                                containerColor = Color(0xFF18182E),
+                                titleContentColor = Color.White,
+                                textContentColor = Color.White
+                            )
                         }
                     }
                 }

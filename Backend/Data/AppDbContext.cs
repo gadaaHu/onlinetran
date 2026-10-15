@@ -17,6 +17,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Question> Questions { get; set; }
     public DbSet<AnswerOption> AnswerOptions { get; set; }
     public DbSet<QuizResult> QuizResults { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
+    public DbSet<LessonProgress> LessonProgresses { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -121,5 +123,45 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Quiz>()
             .HasIndex(q => q.CourseId)
             .HasDatabaseName("IX_Quizzes_CourseId");
+
+        // ============ NOTIFICATIONS ============
+        builder.Entity<Notification>()
+            .HasOne(n => n.User)
+            .WithMany()
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Notification>()
+            .HasIndex(n => new { n.UserId, n.IsRead })
+            .HasDatabaseName("IX_Notifications_UserId_IsRead");
+
+        // ============ LESSON PROGRESS ============
+        builder.Entity<LessonProgress>()
+            .HasOne(lp => lp.User)
+            .WithMany()
+            .HasForeignKey(lp => lp.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LessonProgress>()
+            .HasOne(lp => lp.Lesson)
+            .WithMany()
+            .HasForeignKey(lp => lp.LessonId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LessonProgress>()
+            .HasOne(lp => lp.Course)
+            .WithMany()
+            .HasForeignKey(lp => lp.CourseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Unique: one progress record per user per lesson
+        builder.Entity<LessonProgress>()
+            .HasIndex(lp => new { lp.UserId, lp.LessonId })
+            .IsUnique()
+            .HasDatabaseName("IX_LessonProgress_UserId_LessonId");
+
+        builder.Entity<LessonProgress>()
+            .HasIndex(lp => new { lp.UserId, lp.CourseId })
+            .HasDatabaseName("IX_LessonProgress_UserId_CourseId");
     }
 }

@@ -81,4 +81,16 @@ dependencies {
   implementation(libs.androidx.navigation3.ui)
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+
+  // CameraX - for face detection preview
+  implementation(libs.camera.core)
+  implementation(libs.camera.camera2)
+  implementation(libs.camera.lifecycle)
+  implementation(libs.camera.view)
+
+  // ML Kit Face Detection
+  implementation(libs.mlkit.face.detection)
+
+  // Guava (ListenableFuture for CameraX)
+  implementation(libs.guava)
 }

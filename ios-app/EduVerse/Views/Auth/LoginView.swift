@@ -6,6 +6,7 @@ struct LoginView: View {
     @State private var password: String = "Admin@123!"
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
+    @State private var showRegisterSheet: Bool = false
 
     var body: some View {
         ZStack {
@@ -151,9 +152,26 @@ struct LoginView: View {
                 }
                 .padding(20)
 
+                // Sign Up link
+                Button(action: {
+                    showRegisterSheet = true
+                }) {
+                    HStack(spacing: 4) {
+                        Text("Don't have an account?")
+                            .foregroundColor(.white.opacity(0.6))
+                        Text("Register as Student")
+                            .fontWeight(.bold)
+                            .foregroundColor(Color(red: 139/255, green: 92/255, blue: 246/255))
+                    }
+                    .font(.system(size: 14))
+                }
+
                 Spacer()
             }
             .padding(.horizontal, 16)
+        }
+        .sheet(isPresented: $showRegisterSheet) {
+            RegisterView()
         }
     }
 }

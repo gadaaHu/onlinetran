@@ -5,6 +5,17 @@ struct CourseListView: View {
     @State private var courses: [Course] = []
     @State private var isLoading: Bool = true
     @State private var selectedLiveLesson: (roomName: String, title: String)? = nil
+    @State private var showNotifications: Bool = false
+    @State private var showProgress: Bool = false
+    @State private var showAuthorizer: Bool = false
+    @State private var selectedCertificateCourse: Course? = nil
+
+    private var isStaffOrAdmin: Bool {
+        api.currentUser?.roles.contains(where: {
+            let role = $0.lowercased()
+            return role == "admin" || role == "instructor" || role == "authorizer"
+        }) ?? false
+    }
 
     var body: some View {
         NavigationStack {
@@ -18,6 +29,52 @@ struct CourseListView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 16) {
+                            // User Welcome Header
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Welcome back,")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.white.opacity(0.6))
+                                    Text(api.currentUser?.fullName ?? "EduVerse Learner")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                                Spacer()
+                                // Quick action buttons
+                                HStack(spacing: 8) {
+                                    Button(action: { showProgress = true }) {
+                                        Image(systemName: "chart.bar.xaxis")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(Color(hex: "6366F1"))
+                                            .padding(10)
+                                            .background(Color(hex: "6366F1").opacity(0.15))
+                                            .clipShape(Circle())
+                                    }
+
+                                    Button(action: { showNotifications = true }) {
+                                        Image(systemName: "bell.fill")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(Color(hex: "F59E0B"))
+                                            .padding(10)
+                                            .background(Color(hex: "F59E0B").opacity(0.15))
+                                            .clipShape(Circle())
+                                    }
+
+                                    if isStaffOrAdmin {
+                                        Button(action: { showAuthorizer = true }) {
+                                            Image(systemName: "shield.checkered")
+                                                .font(.system(size: 15, weight: .semibold))
+                                                .foregroundColor(Color(hex: "10B981"))
+                                                .padding(10)
+                                                .background(Color(hex: "10B981").opacity(0.15))
+                                                .clipShape(Circle())
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 4)
+                            .padding(.top, 4)
+
                             // Banner Card
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -43,10 +100,16 @@ struct CourseListView: View {
 
                             // Course Cards
                             ForEach(courses) { course in
-                                CourseCardView(course: course) { lesson in
-                                    let room = lesson.meetingUrl ?? "eduverse-class-\(course.id)"
-                                    selectedLiveLesson = (roomName: room, title: lesson.title)
-                                }
+                                CourseCardView(
+                                    course: course,
+                                    onJoinLive: { lesson in
+                                        let room = lesson.meetingUrl ?? "eduverse-class-\(course.id)"
+                                        selectedLiveLesson = (roomName: room, title: lesson.title)
+                                    },
+                                    onViewCertificate: {
+                                        selectedCertificateCourse = course
+                                    }
+                                )
                             }
                         }
                         .padding()
@@ -56,6 +119,18 @@ struct CourseListView: View {
             .navigationTitle("Courses")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if isStaffOrAdmin {
+                        Button(action: { showAuthorizer = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "shield.fill")
+                                Text("Authorizer")
+                            }
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(hex: "10B981"))
+                        }
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         api.logout()
@@ -66,6 +141,7 @@ struct CourseListView: View {
                     }
                 }
             }
+            // Classroom Sheet
             .sheet(item: Binding(
                 get: {
                     if let selected = selectedLiveLesson {
@@ -76,6 +152,27 @@ struct CourseListView: View {
                 set: { if $0 == nil { selectedLiveLesson = nil } }
             )) { item in
                 LiveClassroomView(roomName: item.roomName, lessonTitle: item.title)
+            }
+            // Notifications Sheet
+            .sheet(isPresented: $showNotifications) {
+                NotificationsView()
+            }
+            // Progress Sheet
+            .sheet(isPresented: $showProgress) {
+                StudentProgressView()
+            }
+            // Authorizer Portal Sheet
+            .sheet(isPresented: $showAuthorizer) {
+                AuthorizerView()
+            }
+            // Certificate Sheet
+            .sheet(item: $selectedCertificateCourse) { course in
+                CertificateView(
+                    courseTitle: course.title,
+                    studentName: api.currentUser?.fullName ?? "EduVerse Student",
+                    instructorName: course.instructorName,
+                    courseId: course.id
+                )
             }
             .task {
                 courses = await api.fetchCourses()
@@ -94,6 +191,11 @@ struct LiveLessonWrapper: Identifiable {
 struct CourseCardView: View {
     let course: Course
     let onJoinLive: (Lesson) -> Void
+    var onViewCertificate: (() -> Void)? = nil
+
+    var isCompleted: Bool {
+        course.isCompleted ?? false
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -102,13 +204,23 @@ struct CourseCardView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
                 Spacer()
-                Text("ENROLLED")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(Color(red: 16/255, green: 185/255, blue: 129/255))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(red: 16/255, green: 185/255, blue: 129/255).opacity(0.15))
-                    .cornerRadius(6)
+                if isCompleted {
+                    Text("COMPLETED")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Color(hex: "10B981"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "10B981").opacity(0.15))
+                        .cornerRadius(6)
+                } else {
+                    Text("ENROLLED")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Color(hex: "6366F1"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "6366F1").opacity(0.15))
+                        .cornerRadius(6)
+                }
             }
 
             Text(course.description)
@@ -124,24 +236,44 @@ struct CourseCardView: View {
                     .foregroundColor(.white.opacity(0.5))
             }
 
-            if let lesson = course.lessons?.first(where: { $0.isLive }) {
-                Button(action: {
-                    onJoinLive(lesson)
-                }) {
-                    HStack {
-                        Image(systemName: "video.fill")
-                            .font(.system(size: 14))
-                        Text("Join Live Virtual Classroom")
-                            .font(.system(size: 13, weight: .bold))
+            HStack(spacing: 8) {
+                if let lesson = course.lessons?.first(where: { $0.isLive }) {
+                    Button(action: {
+                        onJoinLive(lesson)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 13))
+                            Text("Live Classroom")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(Color(hex: "10B981"))
+                        .cornerRadius(10)
                     }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 42)
-                    .background(Color(red: 16/255, green: 185/255, blue: 129/255))
-                    .cornerRadius(10)
                 }
-                .padding(.top, 4)
+
+                if isCompleted {
+                    Button(action: {
+                        onViewCertificate?()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "seal.fill")
+                                .font(.system(size: 12))
+                            Text("Certificate")
+                                .font(.system(size: 12, weight: .bold))
+                        }
+                        .foregroundColor(Color(hex: "F59E0B"))
+                        .frame(width: 105, height: 40)
+                        .background(Color(hex: "F59E0B").opacity(0.15))
+                        .cornerRadius(10)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(hex: "F59E0B").opacity(0.3), lineWidth: 1))
+                    }
+                }
             }
+            .padding(.top, 4)
         }
         .padding(16)
         .background(Color(red: 20/255, green: 20/255, blue: 38/255))

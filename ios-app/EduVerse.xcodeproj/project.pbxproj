@@ -13,6 +13,12 @@
 		4A0000072C00000100000001 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000082C00000100000001 /* LoginView.swift */; };
 		4A0000092C00000100000001 /* CourseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A00000A2C00000100000001 /* CourseListView.swift */; };
 		4A00000B2C00000100000001 /* LiveClassroomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A00000C2C00000100000001 /* LiveClassroomView.swift */; };
+		4A0000212C00000100000001 /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000222C00000100000001 /* RegisterView.swift */; };
+		4A0000232C00000100000001 /* AuthorizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000242C00000100000001 /* AuthorizerView.swift */; };
+		4A0000252C00000100000001 /* CertificateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000262C00000100000001 /* CertificateView.swift */; };
+		4A0000272C00000100000001 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000282C00000100000001 /* NotificationsView.swift */; };
+		4A0000292C00000100000001 /* StudentProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A00002A2C00000100000001 /* StudentProgressView.swift */; };
+		4A00002B2C00000100000001 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A00002C2C00000100000001 /* Color+Hex.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,10 +26,16 @@
 		4A0000022C00000100000001 /* EduVerseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EduVerseApp.swift; sourceTree = "<group>"; };
 		4A0000042C00000100000001 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		4A0000062C00000100000001 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
-		4A0000082C00000100000001 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		4A00000A2C00000100000001 /* CourseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseListView.swift; sourceTree = "<group>"; };
-		4A00000C2C00000100000001 /* LiveClassroomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveClassroomView.swift; sourceTree = "<group>"; };
+		4A0000082C00000100000001 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Auth/LoginView.swift"; sourceTree = "<group>"; };
+		4A0000222C00000100000001 /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Auth/RegisterView.swift"; sourceTree = "<group>"; };
+		4A00000A2C00000100000001 /* CourseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Courses/CourseListView.swift"; sourceTree = "<group>"; };
+		4A00000C2C00000100000001 /* LiveClassroomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Classroom/LiveClassroomView.swift"; sourceTree = "<group>"; };
+		4A0000242C00000100000001 /* AuthorizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Authorizer/AuthorizerView.swift"; sourceTree = "<group>"; };
+		4A0000262C00000100000001 /* CertificateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Certificate/CertificateView.swift"; sourceTree = "<group>"; };
+		4A0000282C00000100000001 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Notifications/NotificationsView.swift"; sourceTree = "<group>"; };
+		4A00002A2C00000100000001 /* StudentProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Progress/StudentProgressView.swift"; sourceTree = "<group>"; };
 		4A00000E2C00000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A00002C2C00000100000001 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,8 +97,13 @@
 			isa = PBXGroup;
 			children = (
 				4A0000082C00000100000001 /* LoginView.swift */,
+				4A0000222C00000100000001 /* RegisterView.swift */,
 				4A00000A2C00000100000001 /* CourseListView.swift */,
 				4A00000C2C00000100000001 /* LiveClassroomView.swift */,
+				4A0000242C00000100000001 /* AuthorizerView.swift */,
+				4A0000262C00000100000001 /* CertificateView.swift */,
+				4A0000282C00000100000001 /* NotificationsView.swift */,
+				4A00002A2C00000100000001 /* StudentProgressView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -95,6 +112,7 @@
 			isa = PBXGroup;
 			children = (
 				4A00000E2C00000100000001 /* Info.plist */,
+				4A00002C2C00000100000001 /* Color+Hex.swift */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -169,6 +187,12 @@
 				4A0000072C00000100000001 /* LoginView.swift in Sources */,
 				4A0000092C00000100000001 /* CourseListView.swift in Sources */,
 				4A00000B2C00000100000001 /* LiveClassroomView.swift in Sources */,
+				4A0000212C00000100000001 /* RegisterView.swift in Sources */,
+				4A0000232C00000100000001 /* AuthorizerView.swift in Sources */,
+				4A0000252C00000100000001 /* CertificateView.swift in Sources */,
+				4A0000272C00000100000001 /* NotificationsView.swift in Sources */,
+				4A0000292C00000100000001 /* StudentProgressView.swift in Sources */,
+				4A00002B2C00000100000001 /* Color+Hex.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

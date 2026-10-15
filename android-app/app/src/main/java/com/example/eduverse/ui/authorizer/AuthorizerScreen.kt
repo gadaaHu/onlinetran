@@ -29,6 +29,11 @@ fun AuthorizerScreen(
     var filterQuery by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
+    val bg = MaterialTheme.colorScheme.background
+    val surface = MaterialTheme.colorScheme.surface
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val primary = MaterialTheme.colorScheme.primary
+
     fun loadStudents() {
         isLoading = true
         scope.launch {
@@ -55,29 +60,29 @@ fun AuthorizerScreen(
                             text = "🛡️ Student Authorization",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = onSurface
                         )
                         Text(
                             text = "Confirm & approve student access",
                             fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.6f)
+                            color = onSurface.copy(alpha = 0.6f)
                         )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("←", fontSize = 20.sp, color = Color.White)
+                        Text("←", fontSize = 22.sp, color = onSurface)
                     }
                 },
                 actions = {
                     IconButton(onClick = { loadStudents() }) {
-                        Text("🔄", fontSize = 16.sp)
+                        Text("🔄", fontSize = 18.sp)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F0F1D))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = surface)
             )
         },
-        containerColor = Color(0xFF0A0A14),
+        containerColor = bg,
         modifier = modifier
     ) { padding ->
         Column(
@@ -102,7 +107,7 @@ fun AuthorizerScreen(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("Pending Approval", fontSize = 11.sp, color = Color(0xFFFBBF24))
-                        Text("$pendingCount", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("$pendingCount", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = onSurface)
                     }
                 }
 
@@ -114,7 +119,7 @@ fun AuthorizerScreen(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("Authorized Students", fontSize = 11.sp, color = Color(0xFF34D399))
-                        Text("$approvedCount", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("$approvedCount", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = onSurface)
                     }
                 }
             }
@@ -125,28 +130,28 @@ fun AuthorizerScreen(
             OutlinedTextField(
                 value = filterQuery,
                 onValueChange = { filterQuery = it },
-                placeholder = { Text("Filter by student name or email...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
+                placeholder = { Text("Filter by student name or email...", color = onSurface.copy(alpha = 0.45f), fontSize = 13.sp) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                    focusedTextColor = onSurface,
+                    unfocusedTextColor = onSurface,
+                    focusedBorderColor = primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                 )
             )
 
             if (actionMessage != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Surface(
-                    color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                    color = primary.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = actionMessage ?: "",
-                        color = Color.White,
+                        color = onSurface,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(8.dp)
                     )
@@ -157,7 +162,7 @@ fun AuthorizerScreen(
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF8B5CF6))
+                    CircularProgressIndicator(color = primary)
                 }
             } else {
                 val filtered = students.filter {
@@ -168,7 +173,7 @@ fun AuthorizerScreen(
 
                 if (filtered.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No registered students found.", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
+                        Text("No registered students found.", color = onSurface.copy(alpha = 0.5f), fontSize = 14.sp)
                     }
                 } else {
                     LazyColumn(
@@ -178,7 +183,8 @@ fun AuthorizerScreen(
                         items(filtered, key = { it.id }) { s ->
                             Card(
                                 shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF131326)),
+                                colors = CardDefaults.cardColors(containerColor = surface),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
@@ -192,12 +198,12 @@ fun AuthorizerScreen(
                                                 text = s.fullName.ifBlank { s.email },
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
-                                                color = Color.White
+                                                color = onSurface
                                             )
                                             Text(
                                                 text = s.email,
                                                 fontSize = 12.sp,
-                                                color = Color.White.copy(alpha = 0.6f)
+                                                color = onSurface.copy(alpha = 0.6f)
                                             )
                                         }
 

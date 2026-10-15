@@ -9,6 +9,8 @@ import '../widgets/course_card.dart';
 import 'login_screen.dart';
 import 'create_course_screen.dart';
 import 'admin_screen.dart';
+import 'student_dashboard_screen.dart';
+import 'notifications_screen.dart';
 
 // ─── Enrolled Courses Provider moved to providers.dart ────────────────────────
 
@@ -66,6 +68,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final tabs = [
       _CourseCatalogTab(heroFade: _heroFade, heroSlide: _heroSlide, greeting: _greeting(), firstName: firstName),
       const _MyCoursesTab(),
+      const StudentDashboardScreen(),
       if (user != null && user.roles.contains('Instructor'))
         const _TeachingTab(),
       _ProfileTab(),
@@ -129,7 +132,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
+        // Notifications bell
+        if (user != null)
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            color: colorScheme.onSurface,
+            tooltip: 'Notifications',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const NotificationsScreen()),
+            ),
+          ),
+        const SizedBox(width: 4),
         if (user != null)
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -271,7 +287,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         const NavigationDestination(
             icon: Icon(Icons.bookmark_outline_rounded),
             selectedIcon: Icon(Icons.bookmark_rounded),
-            label: 'My Learning'),
+            label: 'My Courses'),
+        const NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart_rounded),
+            label: 'Dashboard'),
         if (user != null && user.roles.contains('Instructor'))
           const NavigationDestination(
               icon: Icon(Icons.school_outlined),

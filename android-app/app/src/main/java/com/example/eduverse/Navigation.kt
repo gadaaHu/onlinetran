@@ -12,6 +12,8 @@ import com.example.eduverse.ui.auth.RegisterScreen
 import com.example.eduverse.ui.authorizer.AuthorizerScreen
 import com.example.eduverse.ui.classroom.AndroidLiveClassroomScreen
 import com.example.eduverse.ui.courses.CourseListScreen
+import com.example.eduverse.ui.notifications.NotificationsScreen
+import com.example.eduverse.ui.progress.StudentProgressScreen
 
 @Composable
 fun MainNavigation() {
@@ -56,6 +58,12 @@ fun MainNavigation() {
                     onOpenAuthorizer = {
                         backStack.add(AuthorizerRoute)
                     },
+                    onOpenNotifications = {
+                        backStack.add(NotificationsRoute)
+                    },
+                    onOpenProgress = {
+                        backStack.add(ProgressRoute)
+                    },
                     onLogout = {
                         EduVerseApi.currentSession = null
                         backStack.clear()
@@ -67,6 +75,24 @@ fun MainNavigation() {
 
             entry<AuthorizerRoute> {
                 AuthorizerScreen(
+                    onBack = {
+                        backStack.removeLastOrNull()
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            entry<NotificationsRoute> {
+                NotificationsScreen(
+                    onBack = {
+                        backStack.removeLastOrNull()
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            entry<ProgressRoute> {
+                StudentProgressScreen(
                     onBack = {
                         backStack.removeLastOrNull()
                     },
