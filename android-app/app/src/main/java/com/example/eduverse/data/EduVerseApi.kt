@@ -60,6 +60,21 @@ data class LiveStudentPresence(
     val deviceInfo: String = "Android Device"
 )
 
+data class AdminUser(
+    val id: String,
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val isActive: Boolean,
+    val roles: List<String>,
+    val enrollmentCount: Int
+) {
+    val fullName: String get() = "$firstName $lastName".trim()
+    val primaryRole: String get() = roles.firstOrNull { it.equals("Admin", true) }
+        ?: roles.firstOrNull { it.equals("Instructor", true) }
+        ?: roles.firstOrNull() ?: "Student"
+}
+
 object EduVerseApi {
     // Priority order for connection attempts:
     // 1. localhost / 127.0.0.1 — works when connected via USB with ADB reverse (adb reverse tcp:5083 tcp:5083)
@@ -317,6 +332,192 @@ object EduVerseApi {
                 Result.success(obj.optString("message", "Control executed"))
             } else {
                 Result.failure(Exception("Control failed (HTTP $code)"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getAdminUsers(search: String? = null): Result<List<AdminUser>> = withContext(Dispatchers.IO) {
+        try {
+            val queryParam = if (!search.isNullOrBlank()) "?search=${java.net.URLEncoder.encode(search, "UTF-8")}" else ""
+            val url = URL("$baseUrl/admin/users$queryParam")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                currentSession?.token?.let {
+                    setRequestProperty("Authorization", "Bearer $it")
+                }
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+
+            val code = conn.responseCode
+            if (code in 200..299) {
+                val resp = conn.inputStream.bufferedReader().use(BufferedReader::readText)
+                val array = JSONArray(resp)
+                val list = mutableListOf<AdminUser>()
+                for (i in 0 until array.length()) {
+                    val item = array.getJSONObject(i)
+                    val rolesArr = item.optJSONArray("roles")
+                    val rolesList = mutableListOf<String>()
+                    if (rolesArr != null) {
+                        for (r in 0 until rolesArr.length()) {
+                            rolesList.add(rolesArr.getString(r))
+                        }
+                    }
+                    list.add(
+                        AdminUser(
+                            id = item.getString("id"),
+                            firstName = item.optString("firstName", ""),
+                            lastName = item.optString("lastName", ""),
+                            email = item.getString("email"),
+                            isActive = item.optBoolean("isActive", true),
+                            roles = rolesList,
+                            enrollmentCount = item.optInt("enrollmentCount", 0)
+                        )
+                    )
+                }
+                Result.success(list)
+            } else {
+                Result.failure(Exception("Failed to load users (HTTP $code)"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createAdminUser(
+        firstName: String,
+        lastName: String,
+        email: String,
+        pass: String,
+        role: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$baseUrl/admin/users/create")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                currentSession?.token?.let {
+                    setRequestProperty("Authorization", "Bearer $it")
+                }
+                doOutput = true
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+
+            val json = JSONObject().apply {
+                put("firstName", firstName)
+                put("lastName", lastName)
+                put("email", email)
+                put("password", pass)
+                put("role", role)
+            }
+
+            OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
+
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val resp = stream?.bufferedReader()?.use(BufferedReader::readText) ?: ""
+
+            if (code in 200..299) {
+                val obj = JSONObject(resp)
+                Result.success(obj.optString("message", "User created successfully."))
+            } else {
+                val errObj = try { JSONObject(resp) } catch (_: Exception) { null }
+                val msg = errObj?.optString("message") ?: "Failed to create user (HTTP $code)"
+                Result.failure(Exception(msg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun setAdminUserRole(userId: String, role: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$baseUrl/admin/users/$userId/set-role")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                currentSession?.token?.let {
+                    setRequestProperty("Authorization", "Bearer $it")
+                }
+                doOutput = true
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+
+            val json = JSONObject().apply {
+                put("role", role)
+            }
+
+            OutputStreamWriter(conn.outputStream).use { it.write(json.toString()) }
+
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val resp = stream?.bufferedReader()?.use(BufferedReader::readText) ?: ""
+
+            if (code in 200..299) {
+                val obj = JSONObject(resp)
+                Result.success(obj.optString("message", "Role updated successfully."))
+            } else {
+                Result.failure(Exception("Failed to update role (HTTP $code)"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun toggleAdminUserStatus(userId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$baseUrl/admin/users/$userId/toggle-status")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "PUT"
+                currentSession?.token?.let {
+                    setRequestProperty("Authorization", "Bearer $it")
+                }
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val resp = stream?.bufferedReader()?.use(BufferedReader::readText) ?: ""
+
+            if (code in 200..299) {
+                val obj = JSONObject(resp)
+                Result.success(obj.optBoolean("isActive", true))
+            } else {
+                Result.failure(Exception("Failed to toggle status (HTTP $code)"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteAdminUser(userId: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$baseUrl/admin/users/$userId")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "DELETE"
+                currentSession?.token?.let {
+                    setRequestProperty("Authorization", "Bearer $it")
+                }
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val resp = stream?.bufferedReader()?.use(BufferedReader::readText) ?: ""
+
+            if (code in 200..299) {
+                val obj = JSONObject(resp)
+                Result.success(obj.optString("message", "User deleted successfully."))
+            } else {
+                val errObj = try { JSONObject(resp) } catch (_: Exception) { null }
+                val msg = errObj?.optString("message") ?: "Failed to delete user (HTTP $code)"
+                Result.failure(Exception(msg))
             }
         } catch (e: Exception) {
             Result.failure(e)

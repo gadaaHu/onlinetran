@@ -271,6 +271,25 @@ class AdminNotifier extends StateNotifier<AsyncValue<List<UserManagementModel>>>
       return false;
     }
   }
+
+  Future<String?> createUser(String firstName, String lastName, String email, String password, String role) async {
+    try {
+      await ApiClient.dio.post('/admin/users/create', data: {
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'password': password,
+        'role': role,
+      });
+      await fetchUsers();
+      return null; // success
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Failed to create user';
+      return msg.toString();
+    } catch (e) {
+      return e.toString();
+    }
+  }
 }
 
 final adminProvider =

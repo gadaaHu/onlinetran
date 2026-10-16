@@ -16,6 +16,9 @@ data object CoursesRoute : NavKey
 data object AuthorizerRoute : NavKey
 
 @Serializable
+data object UserManagementRoute : NavKey
+
+@Serializable
 data object NotificationsRoute : NavKey
 
 @Serializable

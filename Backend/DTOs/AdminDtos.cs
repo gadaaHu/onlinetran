@@ -11,3 +11,11 @@ public record UserManagementDto(
 );
 
 public record SetRoleDto(string Role);
+
+public record CreateUserDto(
+    string FirstName,
+    string LastName,
+    string Email,
+    string Password,
+    string Role
+);

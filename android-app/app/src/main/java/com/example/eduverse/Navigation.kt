@@ -7,6 +7,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.eduverse.data.EduVerseApi
+import com.example.eduverse.ui.admin.UserManagementScreen
 import com.example.eduverse.ui.auth.LoginScreen
 import com.example.eduverse.ui.auth.RegisterScreen
 import com.example.eduverse.ui.authorizer.AuthorizerScreen
@@ -58,6 +59,9 @@ fun MainNavigation() {
                     onOpenAuthorizer = {
                         backStack.add(AuthorizerRoute)
                     },
+                    onOpenUserManagement = {
+                        backStack.add(UserManagementRoute)
+                    },
                     onOpenNotifications = {
                         backStack.add(NotificationsRoute)
                     },
@@ -68,6 +72,15 @@ fun MainNavigation() {
                         EduVerseApi.currentSession = null
                         backStack.clear()
                         backStack.add(LoginRoute)
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            entry<UserManagementRoute> {
+                UserManagementScreen(
+                    onBack = {
+                        backStack.removeLastOrNull()
                     },
                     modifier = Modifier.fillMaxSize()
                 )

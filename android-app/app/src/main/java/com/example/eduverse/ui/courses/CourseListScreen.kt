@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 fun CourseListScreen(
     onOpenClassroom: (roomName: String, lessonTitle: String) -> Unit,
     onOpenAuthorizer: () -> Unit,
+    onOpenUserManagement: () -> Unit = {},
     onOpenNotifications: () -> Unit,
     onOpenProgress: () -> Unit,
     onLogout: () -> Unit,
@@ -32,7 +33,8 @@ fun CourseListScreen(
     var courses by remember { mutableStateOf<List<Course>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     val user = EduVerseApi.currentSession
-    val isAuthorizer = user?.roles?.any { it.equals("Admin", ignoreCase = true) || it.equals("Instructor", ignoreCase = true) } == true
+    val isAdmin = user?.roles?.any { it.equals("Admin", ignoreCase = true) } == true
+    val isAuthorizer = isAdmin || user?.roles?.any { it.equals("Instructor", ignoreCase = true) } == true
     val scope = rememberCoroutineScope()
 
     var showBroadcastDialog by remember { mutableStateOf(false) }
@@ -79,6 +81,11 @@ fun CourseListScreen(
                     // Notifications bell icon
                     IconButton(onClick = onOpenNotifications) {
                         Text("🔔", fontSize = 18.sp)
+                    }
+                    if (isAdmin) {
+                        IconButton(onClick = onOpenUserManagement) {
+                            Text("👥", fontSize = 18.sp)
+                        }
                     }
                     if (isAuthorizer) {
                         IconButton(onClick = onOpenAuthorizer) {
@@ -147,6 +154,53 @@ fun CourseListScreen(
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                                 )
+                            }
+                        }
+                    }
+                }
+
+                if (isAdmin) {
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("👥", fontSize = 18.sp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "User Management Portal",
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Create accounts, manage roles, unlock or suspend users.",
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Button(
+                                    onClick = onOpenUserManagement,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Text("Manage", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
                             }
                         }
                     }

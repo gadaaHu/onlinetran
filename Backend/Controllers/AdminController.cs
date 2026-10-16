@@ -57,6 +57,39 @@ public class AdminController : ControllerBase
         return Ok(result.OrderBy(u => u.FirstName));
     }
 
+    // POST /api/admin/users/create
+    [HttpPost("users/create")]
+    public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
+            return BadRequest(new { Message = "Email and Password are required." });
+
+        var existing = await _userManager.FindByEmailAsync(dto.Email);
+        if (existing != null)
+            return Conflict(new { Message = "A user with this email already exists." });
+
+        var user = new ApplicationUser
+        {
+            UserName = dto.Email,
+            Email = dto.Email,
+            FirstName = dto.FirstName,
+            LastName = dto.LastName,
+            EmailConfirmed = true
+        };
+
+        var result = await _userManager.CreateAsync(user, dto.Password);
+        if (!result.Succeeded)
+            return BadRequest(new { Message = string.Join("; ", result.Errors.Select(e => e.Description)) });
+
+        var role = string.IsNullOrWhiteSpace(dto.Role) ? "Student" : dto.Role;
+        var validRoles = new[] { "Student", "Instructor", "Admin" };
+        if (!validRoles.Contains(role)) role = "Student";
+
+        await _userManager.AddToRoleAsync(user, role);
+
+        return Ok(new { Message = $"User {dto.Email} created successfully with role {role}.", UserId = user.Id });
+    }
+
     // POST /api/admin/users/{id}/set-role
     [HttpPost("users/{id}/set-role")]
     public async Task<IActionResult> SetRole(string id, [FromBody] SetRoleDto dto)
